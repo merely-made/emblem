@@ -52,21 +52,12 @@ impl ViewBox {
 }
 
 /// What the metadata section carries.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Metadata {
     pub view_box: ViewBox,
     /// The graphic's suggested palette, used as the custom palette when the
     /// caller supplies none.
     pub suggested_palette: Palette,
-}
-
-impl Default for Metadata {
-    fn default() -> Self {
-        Self {
-            view_box: ViewBox::default(),
-            suggested_palette: Palette::default(),
-        }
-    }
 }
 
 /// Decode the magic identifier and metadata, returning them with the offset at

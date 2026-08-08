@@ -19,6 +19,17 @@ pub(crate) fn op_length(bytes: &[u8]) -> Result<usize> {
     let opcode = *bytes.first().ok_or(Error::Truncated)?;
     let low4 = usize::from(opcode & 0x0F);
 
+    /// The bytes from `at` onwards, or `Truncated`.
+    ///
+    /// Every offset below is derived from the file being measured -- an Extra
+    /// Data length, a natural number's width, a coordinate's width -- so all of
+    /// them are attacker-controlled. Slicing with `&bytes[at..]` panics when
+    /// `at` runs past the end, and three of these sites were reachable that
+    /// way from a crafted file before the adversarial suite found them.
+    fn from(bytes: &[u8], at: usize) -> Result<&[u8]> {
+        bytes.get(at..).ok_or(Error::Truncated)
+    }
+
     Ok(match opcode {
         // Geometry: LineTo, QuadTo, CubeTo. Coordinates per repetition differ.
         0x00..=0x2F => {
@@ -28,39 +39,43 @@ pub(crate) fn op_length(bytes: &[u8]) -> Result<usize> {
                 _ => 6,
             };
             let (reps, header) = repetition_count(bytes, low4)?;
-            header + coordinates(&bytes[header..], reps * per_rep)?
+            // A zero-LOW4 op can declare a repetition count near u32::MAX, so
+            // the multiply is checked. `coordinates` then stops at the first
+            // byte it does not have, rather than iterating the whole count.
+            let total = reps.checked_mul(per_rep).ok_or(Error::Truncated)?;
+            header + coordinates(from(bytes, header)?, total)?
         },
         // Ellipse and Parallelogram: exactly 4 coordinates.
-        0x30..=0x34 => 1 + coordinates(&bytes[1..], 4)?,
+        0x30..=0x34 => 1 + coordinates(from(bytes, 1)?, 4)?,
         // ClosePathMoveTo: 2 coordinates.
-        0x35 => 1 + coordinates(&bytes[1..], 2)?,
+        0x35 => 1 + coordinates(from(bytes, 1)?, 2)?,
         // Add to SEL: one operand byte.
         0x36 => 2,
         // NOP.
         0x37 => 1,
         // Unconditional Jump: a natural JumpCount.
-        0x38 => 1 + natural_len(&bytes[1..])?,
+        0x38 => 1 + natural_len(from(bytes, 1)?)?,
         // FDJump: JumpCount then FeaturesNeeded, both natural.
         0x39 => {
-            let a = natural_len(&bytes[1..])?;
-            1 + a + natural_len(&bytes[1 + a..])?
+            let a = natural_len(from(bytes, 1)?)?;
+            1 + a + natural_len(from(bytes, 1 + a)?)?
         },
         // LODJump: JumpCount then two coordinates.
         0x3A => {
-            let a = natural_len(&bytes[1..])?;
-            1 + a + coordinates(&bytes[1 + a..], 2)?
+            let a = natural_len(from(bytes, 1)?)?;
+            1 + a + coordinates(from(bytes, 1 + a)?, 2)?
         },
         // Return.
         0x3B => 1,
         // Call Untransformed: an 8-byte SegRef.
-        0x3C => 1 + segref_len(&bytes[1..])?,
+        0x3C => 1 + segref_len(from(bytes, 1)?)?,
         // Call Transformed: an alpha byte, 6 coordinates, then a SegRef.
         0x3D => {
-            let aftm = 1 + coordinates(&bytes[2..], 6)?;
-            1 + aftm + segref_len(&bytes[1 + aftm..])?
+            let aftm = 1 + coordinates(from(bytes, 2)?, 6)?;
+            1 + aftm + segref_len(from(bytes, 1 + aftm)?)?
         },
         // Reserved, followed by Extra Data: a NOP in this version.
-        0x3E..=0x3F => 1 + extra_data_len(&bytes[1..])?,
+        0x3E..=0x3F => 1 + extra_data_len(from(bytes, 1)?)?,
         // Register ops: 4, 4, 8, or 8 * (LOW4 + 2) operand bytes.
         0x40..=0x5F => 5,
         0x60..=0x6F => 9,
@@ -72,14 +87,14 @@ pub(crate) fn op_length(bytes: &[u8]) -> Result<usize> {
         // Radial gradient: a config byte then six float32s.
         0xA0..=0xAF => 2 + 24,
         // Reserved, filling flat: Extra Data.
-        0xB0..=0xBF => 1 + extra_data_len(&bytes[1..])?,
+        0xB0..=0xBF => 1 + extra_data_len(from(bytes, 1)?)?,
         // Reserved, a LineTo fallback: Extra Data then a coordinate pair.
         0xC0..=0xDF => {
-            let extra = extra_data_len(&bytes[1..])?;
-            1 + extra + coordinates(&bytes[1 + extra..], 2)?
+            let extra = extra_data_len(from(bytes, 1)?)?;
+            1 + extra + coordinates(from(bytes, 1 + extra)?, 2)?
         },
         // Reserved, a NOP: Extra Data.
-        0xE0..=0xFF => 1 + extra_data_len(&bytes[1..])?,
+        0xE0..=0xFF => 1 + extra_data_len(from(bytes, 1)?)?,
     })
 }
 

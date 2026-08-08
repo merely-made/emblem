@@ -116,7 +116,7 @@ mod tests {
         // The spec uses this byte sequence for both, with different meanings.
         let bytes = [0x04, 0x00, 0x80, 0x3F];
         assert_eq!(natural(&bytes).unwrap().0, 266_338_305);
-        assert_eq!(coordinate(&bytes).unwrap().0, 1.000_000_476_837_158_2);
+        assert_eq!(coordinate(&bytes).unwrap().0, 1.000_000_5);
     }
 
     #[test]
