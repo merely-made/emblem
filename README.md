@@ -34,7 +34,7 @@ older, simpler format. The current specification, implemented here, is a
 **register-based virtual machine**: 64 registers, a selector, colour-reference
 indirection, and control flow. Files are not interchangeable between the two.
 
-## Status: foundation, not a renderer
+## Status: a complete decoder, not a rasterizer
 
 Implemented, and tested against the specification's own worked examples:
 
@@ -43,15 +43,42 @@ Implemented, and tested against the specification's own worked examples:
 | `num` | the natural, coordinate and `float32` encodings |
 | `color` | alpha-premultiplied colour, the 128-entry built-in palette, the 64-entry custom palette, the register file, colour-reference resolution and blending |
 | `meta` | the magic identifier, metadata chunks, ViewBox, suggested palette |
+| `vm` | the bytecode VM: geometry, register, fill, control-flow and reserved ops, including jumps, calls, feature detection and level-of-detail branching |
+| `sink` | where a decoded graphic goes: path segments, fills, gradients |
 
-**Not implemented:** the bytecode VM — geometry, fill, register and control-flow
-ops, including jumps, calls and feature detection. Nothing here rasterizes a
-graphic yet, and the crate does not pretend to.
+**It decodes; it does not rasterize.** `execute` drives a `Sink` with path
+segments and fills, and that is the whole output. IconVG is a presentation
+format whose strokes are already flattened to filled paths, so what a consumer
+needs is the path stream — which every 2D backend already takes. Rasterizing
+here would mean reimplementing, worse, what vello or tiny-skia already do.
 
-31 tests. Where the specification gives a worked example (the natural number
-`0x5A 0x83` is 8406; the coordinate `0x82 0x87` is 7.5; `built_in[0x74]` is
-`C0:80:FF:FF`; the blend in `REGS[21] = 0x0081_D340_7654_3210` targets
-`REGS[40]`), that example is a test.
+One thing a backend must get right: IconVG fills with the **non-zero winding**
+rule, never even-odd. A backend defaulting to even-odd renders
+self-intersecting icons wrongly, and silently.
+
+62 tests. Where the specification gives a worked example, that example is a
+test: the natural number `0x5A 0x83` is 8406; the coordinate `0x82 0x87` is
+7.5; `built_in[0x74]` is `C0:80:FF:FF`; the blend in
+`REGS[21] = 0x0081_D340_7654_3210` targets `REGS[40]`; and the 36-byte
+"action/info" icon decodes to exactly the 7 ops of the disassembly printed
+beside it.
+
+## Three rules that are easy to implement plausibly and wrongly
+
+**Jumps count ops, not bytes.** "Ops are atomic and Jumps cannot move the PC
+into the middle of a multi-byte op", so a jump has to walk the bytecode
+measuring each op. That measurement lives in its own module rather than inside
+the interpreter, because two copies of the op-length table would drift.
+
+**An op's length depends on its operands, not just its opcode.** A coordinate
+is 1, 2 or 4 bytes depending on its own first byte, so the same cube-to opcode
+can be 7 bytes or 25. Measuring by opcode alone lands a jump inside a
+coordinate.
+
+**A graphic always terminates, and that is a property of the format.** Jumps
+"propel the PC forward (never backward)", and calls "cannot nest — the maximum
+call stack depth is one". So there is no fuel counter here and no recursion
+limit to tune; a Call while one is outstanding is simply invalid.
 
 ## Two things worth knowing about the format
 
