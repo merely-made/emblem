@@ -6,7 +6,7 @@
 //! rather than bytes, the register ops' hidden `SEL` decrement, and the
 //! reserved-opcode fallbacks.
 
-use iconvg::{Call, Error, Host, MAGIC, Paint, Palette, Recorder, decode_metadata, execute};
+use emblem::{Call, Error, Host, MAGIC, Paint, Palette, Recorder, decode_metadata, execute};
 
 /// The specification's worked example: Material Design's "action/info" icon,
 /// 36 bytes, printed there with a full annotated disassembly.

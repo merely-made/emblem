@@ -1,4 +1,4 @@
-//! # iconvg
+//! # emblem
 //!
 //! A pure-Rust implementation of [IconVG](https://github.com/nigeltao/iconvg),
 //! a compact binary format for simple vector graphics: icons, logos, glyphs
@@ -11,9 +11,16 @@
 //!
 //! **The format itself carries the warning "THIS FORMAT IS EXPERIMENTAL AND
 //! SUBJECT TO INCOMPATIBLE CHANGES."** This crate is therefore pinned to a
-//! specific revision of the specification (recorded in the README) and is not
-//! published to crates.io. Taking the `iconvg` name on a registry would claim
-//! a stability neither the format nor this crate can currently offer.
+//! specific revision of the specification (recorded in the README), and it
+//! publishes at `0.x` to say the same thing about itself.
+//!
+//! It publishes as **emblem**, not as `iconvg`. The format's name belongs to
+//! the format, and an independent implementation has no business occupying it
+//! on a registry, so `iconvg` is deliberately left unclaimed. *Emblem* is in
+//! any case the older word for what this decodes — a small symbolic figure
+//! carrying a meaning by convention — and Greek *emblēma* is inlaid work, a
+//! figure set into a larger surface, which is precisely what the decoder
+//! yields: path segments and fills for a host renderer to set into its scene.
 //!
 //! What is implemented, faithfully and tested against the specification's own
 //! worked examples:
@@ -41,7 +48,7 @@
 //! self-intersecting icons wrongly and silently.
 //!
 //! ```
-//! # fn main() -> Result<(), iconvg::Error> {
+//! # fn main() -> Result<(), emblem::Error> {
 //! // Material Design's "action/info" icon, the specification's own example.
 //! let file: [u8; 36] = [
 //!     0x8a, 0x49, 0x56, 0x47, 0x03, 0x0b, 0x11, 0x51, 0x51, 0xb1, 0xb1, 0x35,
@@ -49,13 +56,13 @@
 //!     0x95, 0x7d, 0x7d, 0x35, 0x85, 0x75, 0x34, 0x7d, 0x75, 0x7d, 0x6d, 0x88,
 //! ];
 //!
-//! let (metadata, bytecode_at) = iconvg::decode_metadata(&file)?;
-//! let mut sink = iconvg::Recorder::default();
-//! iconvg::execute(
+//! let (metadata, bytecode_at) = emblem::decode_metadata(&file)?;
+//! let mut sink = emblem::Recorder::default();
+//! emblem::execute(
 //!     &file,
 //!     bytecode_at,
-//!     &iconvg::Palette::default(),
-//!     iconvg::Host::default(),
+//!     &emblem::Palette::default(),
+//!     emblem::Host::default(),
 //!     &mut sink,
 //! )?;
 //!
@@ -164,10 +171,10 @@ impl core::error::Error for Error {}
 /// The bytecode itself is not yet interpreted; see the status note above.
 ///
 /// ```
-/// let mut file = iconvg::MAGIC.to_vec();
+/// let mut file = emblem::MAGIC.to_vec();
 /// file.push(0x01); // a natural zero: no metadata chunks
 ///
-/// let (metadata, bytecode_at) = iconvg::decode_metadata(&file).unwrap();
+/// let (metadata, bytecode_at) = emblem::decode_metadata(&file).unwrap();
 ///
 /// // The documented default when no ViewBox chunk is present.
 /// assert_eq!(metadata.view_box.min_x, -32.0);

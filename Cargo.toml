@@ -1,17 +1,13 @@
 [package]
-name = "iconvg"
-version = "0.0.1"
+name = "emblem"
+version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/mark-ik/iconvg"
-description = "A pure-Rust implementation of IconVG, a compact binary format for simple vector graphics: icons, logos, glyphs and emoji. Decoder only, no rendering backend."
+repository = "https://github.com/mark-ik/emblem"
+description = "A pure-Rust decoder for IconVG, a compact binary format for simple vector graphics: icons, logos, glyphs and emoji. Decodes bytecode into path segments and fills for any 2D backend; it does not rasterize. Zero dependencies, unsafe-free, no-std-oriented."
 keywords = ["iconvg", "vector", "graphics", "icons", "decoder"]
 categories = ["encoding", "graphics", "no-std"]
 readme = "README.md"
-# Not published. The format is marked EXPERIMENTAL AND SUBJECT TO INCOMPATIBLE
-# CHANGES by its author, so claiming the crates.io name would be claiming
-# stability this cannot offer yet. See README.
-publish = false
 
 [dependencies]
 

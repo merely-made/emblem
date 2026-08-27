@@ -8,7 +8,7 @@
 //! These are deterministic rather than random. A fuzzer that finds a crash on
 //! Tuesday and not on Wednesday is not a regression test.
 
-use iconvg::{Host, MAGIC, Palette, Recorder, decode_metadata, execute};
+use emblem::{Host, MAGIC, Palette, Recorder, decode_metadata, execute};
 
 /// Decode `file` and return whether it was accepted. Never panics if the
 /// decoder is correct — which is the whole assertion.
