@@ -101,6 +101,7 @@
 #![forbid(unsafe_code)]
 
 pub mod color;
+pub mod encode;
 pub mod meta;
 pub mod num;
 mod oplen;
@@ -108,6 +109,7 @@ pub mod sink;
 pub mod vm;
 
 pub use color::{Palette, Registers, Rgba, built_in_palette};
+pub use encode::EncodeError;
 pub use meta::{MAGIC, Metadata, ViewBox};
 pub use sink::{Call, GradientKind, Matrix, Paint, Recorder, Sink, Spread, Stop};
 pub use vm::{Host, execute};

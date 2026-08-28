@@ -1,7 +1,7 @@
 # Encoder Plan
 
 **Date:** 2026-08-28
-**Status:** plan.
+**Status:** in progress. **E1 landed 2026-08-28**; E2-E4 open.
 **Scope:** add an encode side to `emblem`, making it a complete IconVG
 implementation: declarative input in, deterministic `.ivg` bytes out. The
 motivating consumer is mere's derived node faces
@@ -211,3 +211,46 @@ spec moves, re-pinning is its own dated decision, not a side effect.
   first, editing deferred; authoring on the declarative middle; the
   prior-art question assessed — HVIF, COLRv1/CPAL, TinyVG — and recorded
   above).
+
+### E1 receipt (2026-08-28)
+
+Landed as `src/encode/{mod,num,color}.rs`, 107 tests green (from 70), clippy
+and rustdoc clean. Done-conditions met: spec example bytes reproduced exactly
+(natural `20`→`0x29`, `8406`→`0x5A 0x83`, `266338305`→`0x04 0x00 0x80 0x3F`;
+coordinate `7.0`→`0x8F`, `7.5`→`0x82 0x87`); naturals round-trip exhaustively
+across both width boundaries and sampled to the 30-bit maximum; all 128
+one-byte and all 16384 two-byte coordinates round-trip bit-exactly; the
+determinism harness encodes 6000 values eight times and compares bytes.
+
+**Three format facts the tests forced out, each having first produced a wrong
+implementation or a wrong test:**
+
+1. **The two one-byte bit patterns are not a choice.** `0b01` and `0b11` differ
+   because **bit 1 is the value's own low bit** while bit 0 is the width flag —
+   the spec shows both (`natural 20 = 0x29`, `coordinate 7.0 = 0x8F`). An
+   earlier draft asserted the encoder should "never emit `0b11`", which would
+   have been unsatisfiable. Nothing here is an encoder's decision, which is
+   what keeps the encoding a pure function.
+2. **A four-byte coordinate carries 30 bits, not 32.** Its first byte must end
+   `0b00` or the decoder reads a shorter form, so the low two mantissa bits are
+   unavailable: `0.1` begins `0xCD` and would be misread as one byte. The
+   encoder now rounds to the nearest storable value (`quantize`), which is the
+   **only lossy step in the module** and the plan's anticipated "documented
+   quantization". `is_exact_coordinate` reports in advance. Everything the
+   short forms hold, plus `±0.0` and the infinities, is exact.
+3. **A blend can collide with a literal colour.** The format tags blends by
+   non-sensibility, so a blend of built-in 0 with itself at weight 0 packs to
+   `00:00:00:00` — a sensible transparent black the decoder reads as a literal,
+   losing the blend. Now refused as `EncodeError::BlendReadsAsColor`, with a
+   test sweeping the whole built-in band to confirm the refusal fires exactly
+   when the decoder would misread.
+
+**API note for pictograph:** `ColorSource` makes `Custom(0..=63)` the ordinary
+spelling, and a test decodes one register against two palettes to prove the
+re-theming property at this layer. `EncodeError` is separate from the decoder's
+`Error`, leaving the published decode API untouched.
+
+**Style note:** the repository is not rustfmt-clean and never has been (every
+pre-existing source disagrees with default rustfmt over `},` in match arms), so
+`cargo fmt` was deliberately not run; the new code follows the surrounding
+style and stays within 100 columns.
