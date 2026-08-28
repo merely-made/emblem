@@ -2,7 +2,7 @@
 name = "emblem"
 version = "0.1.0"
 edition = "2024"
-license = "MIT OR Apache-2.0"
+license = "MPL-2.0"
 repository = "https://github.com/mark-ik/emblem"
 description = "A pure-Rust decoder for IconVG, a compact binary format for simple vector graphics: icons, logos, glyphs and emoji. Decodes bytecode into path segments and fills for any 2D backend; it does not rasterize. Zero dependencies, unsafe-free, no-std-oriented."
 keywords = ["iconvg", "vector", "graphics", "icons", "decoder"]

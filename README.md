@@ -49,5 +49,11 @@ fills with the non-zero winding rule, never even-odd.
 
 ## License
 
-MIT OR Apache-2.0. The specification is Apache-2.0 and belongs to its
-authors; this is an independent implementation of it.
+MPL-2.0 (see [`LICENSE`](LICENSE)).
+
+The IconVG specification is Apache-2.0 and belongs to its authors. This is an
+independent implementation written from that specification, not a derivative
+of anyone's code, so it carries no upstream notice.
+
+Published version 0.1.0 shipped under MIT OR Apache-2.0 and keeps that grant
+permanently; MPL-2.0 ships at the next functional bump.
