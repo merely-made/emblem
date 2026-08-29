@@ -12,7 +12,7 @@
 //! rather than bytes, the register ops' hidden `SEL` decrement, and the
 //! reserved-opcode fallbacks.
 
-use emblem::{Call, Error, Host, MAGIC, Paint, Palette, Recorder, decode_metadata, execute};
+use emblem::{Call, Error, Host, MAGIC, Paint, Palette, Recorder, Rgba, decode_metadata, execute};
 
 /// The specification's worked example: Material Design's "action/info" icon,
 /// 36 bytes, printed there with a full annotated disassembly.
@@ -91,6 +91,34 @@ fn the_specifications_own_example_matches_its_disassembly() {
     assert!(matches!(calls[18], Call::Fill(Paint::Flat(_))));
     assert_eq!(calls.len(), 19, "no calls beyond the disassembly's ops");
     assert_eq!(sink.fill_count(), 1);
+}
+
+#[test]
+fn the_spec_example_fills_from_the_custom_palettes_first_colour() {
+    // The icon's last op is 0x88: a flat fill from slot 8. The spec starts SEL
+    // at 56 "so that ... REGS[SEL+8 .. SEL+16] accesses the Custom Palette's
+    // first eight colors", so slot 8 must resolve to palette entry 0.
+    //
+    // This assertion exists because the disassembly test above checks only
+    // that a flat fill happened, never its colour, and ran against an all-black
+    // default palette. That blind spot let the VM start SEL at 0 — putting
+    // every fill 56 registers away from the one the graphic named — while the
+    // whole suite stayed green. Distinct colours in entries 0 and 8 are what
+    // make the difference observable.
+    let mut colors = Palette::default().0;
+    colors[0] = Rgba::new(0xFF, 0x00, 0x00, 0xFF);
+    colors[8] = Rgba::new(0x00, 0xFF, 0x00, 0xFF);
+    let palette = Palette::new(colors).unwrap();
+
+    let (_, start) = decode_metadata(&ACTION_INFO).unwrap();
+    let mut sink = Recorder::default();
+    execute(&ACTION_INFO, start, &palette, Host::default(), &mut sink).unwrap();
+
+    assert_eq!(
+        sink.calls.last(),
+        Some(&Call::Fill(Paint::Flat(Rgba::new(0xFF, 0x00, 0x00, 0xFF)))),
+        "slot 8 must reach the custom palette's first entry, not its ninth",
+    );
 }
 
 #[test]

@@ -107,6 +107,17 @@ struct Vm<'a> {
 
 impl<'a> Vm<'a> {
     fn new(file: &'a [u8], start: usize, palette: &'a Palette, host: Host) -> Self {
+        // SEL comes from the register file rather than a literal here. The
+        // specification initialises it to 56, "so that, at the start,
+        // REGS[SEL+0 .. SEL+8] can be set to a vector graphic's hard-coded
+        // colors while REGS[SEL+8 .. SEL+16] accesses the Custom Palette's
+        // first eight colors". This field used to be initialised to 0
+        // independently of `Registers::new`, which set 56 correctly and was
+        // then never read: every register and fill op addressed a register 56
+        // slots away from the one the graphic named, so a fill resolved to the
+        // wrong palette entry. Taking the value from `regs` keeps the two from
+        // drifting apart again.
+        let regs = Registers::new(palette);
         Self {
             file,
             palette,
@@ -114,8 +125,8 @@ impl<'a> Vm<'a> {
             pc: start,
             eob: EOB_MAX,
             gra: 0,
-            sel: 0,
-            regs: Registers::new(palette),
+            sel: regs.sel,
+            regs,
             alpha: 1.0,
             gftm: Matrix::IDENTITY,
             gbtm: Matrix::IDENTITY,
