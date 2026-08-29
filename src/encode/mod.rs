@@ -46,6 +46,7 @@
 
 pub mod color;
 pub mod num;
+pub mod style;
 
 /// What can go wrong writing a graphic.
 ///
@@ -87,6 +88,23 @@ pub enum EncodeError {
     /// required. Literals have no reference spelling; put one in a register's
     /// high half instead, or name a palette entry.
     LiteralHasNoReference,
+    /// A register slot above 15. Slots are the low four bits of an opcode.
+    SlotOutOfRange(u8),
+    /// A multi-register write of fewer than 2 or more than
+    /// [`style::MAX_REGISTERS_PER_OP`] registers.
+    RegisterCountOutOfRange(usize),
+    /// A gradient with fewer than 2 or more than
+    /// [`style::MAX_GRADIENT_STOPS`] stops. The encoding reserves the value
+    /// that would mean 65, so the ceiling is 64.
+    GradientStopsOutOfRange(usize),
+    /// A gradient transform of the wrong length: three values for a linear
+    /// gradient, six for a radial one.
+    GradientMatrixWrongLength {
+        /// How many the gradient kind requires.
+        expected: usize,
+        /// How many were supplied.
+        found: usize,
+    },
 }
 
 impl core::fmt::Display for EncodeError {
@@ -107,6 +125,21 @@ impl core::fmt::Display for EncodeError {
             },
             Self::LiteralHasNoReference => f.write_str(
                 "a literal colour has no one-byte reference spelling",
+            ),
+            Self::SlotOutOfRange(s) => write!(f, "register slot {s} exceeds 15"),
+            Self::RegisterCountOutOfRange(n) => write!(
+                f,
+                "a multi-register write takes 2 to {} registers, not {n}",
+                style::MAX_REGISTERS_PER_OP,
+            ),
+            Self::GradientStopsOutOfRange(n) => write!(
+                f,
+                "a gradient takes 2 to {} stops, not {n}",
+                style::MAX_GRADIENT_STOPS,
+            ),
+            Self::GradientMatrixWrongLength { expected, found } => write!(
+                f,
+                "this gradient kind needs {expected} transform values, not {found}",
             ),
             Self::BlendReadsAsColor { packed } => write!(
                 f,

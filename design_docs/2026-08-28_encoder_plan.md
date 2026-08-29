@@ -1,7 +1,7 @@
 # Encoder Plan
 
 **Date:** 2026-08-28
-**Status:** in progress. **E1 landed 2026-08-28**; E2-E4 open.
+**Status:** in progress. **E1 and E2 landed 2026-08-28**; E3-E4 open.
 **Scope:** add an encode side to `emblem`, making it a complete IconVG
 implementation: declarative input in, deterministic `.ivg` bytes out. The
 motivating consumer is mere's derived node faces
@@ -254,3 +254,50 @@ re-theming property at this layer. `EncodeError` is separate from the decoder's
 pre-existing source disagrees with default rustfmt over `},` in match arms), so
 `cargo fmt` was deliberately not run; the new code follows the surrounding
 style and stays within 100 columns.
+
+### E2 receipt (2026-08-28)
+
+Landed as `src/encode/style.rs`: `StyleWriter` emits the register-set ops
+(`0x40`/`0x50`/`0x60`/`0x70`), the `SEL` adjust op (`0x36`), flat fills
+(`0x80`) and gradient fills (`0x90` linear, `0xA0` radial). 127 tests green
+(from 107), clippy clean.
+
+**The design point is `SEL` tracking.** Register and fill ops name a *slot*,
+the opcode's low four bits, and address `REGS[SEL + slot]` — and several
+mutate `SEL` as a side effect: a register write with slot 0 decrements it
+afterwards, the multi-register op decrements by the count first and then fills
+upward, and a fill with slot 0 increments before reading. The writer models
+all of it, so `register_index(slot)` answers where a value will actually land.
+
+Done-conditions met: fills through literal and palette-indexed sources decode
+to the expected `Paint`; **palette substitution is proved by decoding one byte
+sequence against two different palettes and observing both resolutions**, at
+flat-fill and gradient-stop level; all 64 custom entries are reachable;
+gradients round-trip kind, all four spreads, stop count, stop offsets and stop
+colours. The reserved 63 stop encoding is shown unreachable.
+
+**E2 found a decoder bug, fixed in `d2a71b5`: the VM started `SEL` at 0
+instead of 56.** `Registers::new` set 56 per spec; `Vm::new` set its own field
+to 0 and never read it (`Registers::sel` was used only by its own unit test).
+Every register and fill op therefore addressed a register 56 slots off, so
+real files resolved the wrong palette colours. Confirmed against the
+specification: *"SEL is initialized to 56 so that, at the start,
+REGS[SEL+0 .. SEL+8] can be set to a vector graphic's hard-coded colors while
+REGS[SEL+8 .. SEL+16] accesses the Custom Palette's first eight colors."*
+Fixed at the root by sourcing `sel` from the register file so the two cannot
+drift again. **Affects published 0.1.0**, whose decode of any palette-using
+file was wrong.
+
+**Why 70 tests missed it, which is the transferable lesson:** the spec's own
+worked example ends in `0x88`, a fill from slot 8 — precisely the slot that
+reaches custom palette entry 0 under the correct `SEL` — but the disassembly
+test asserted only that *a* flat fill occurred, never its colour, and ran
+against an all-black default palette, so both behaviours were
+indistinguishable. A test that exercises a code path without discriminating
+its output is not coverage. The regression test now gives entries 0 and 8
+distinct colours.
+
+**Testing note for later phases:** a fill op with no accumulated geometry is a
+no-op — the VM only calls `sink.fill` when a path is pending — so every fill
+test needs a path first. E2's tests use a minimal `0x01` line-to for this;
+E3 supplies the real thing.
