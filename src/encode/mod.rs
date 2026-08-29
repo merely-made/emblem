@@ -47,6 +47,9 @@
 pub mod color;
 pub mod num;
 pub mod style;
+pub mod writer;
+
+pub use writer::{CubeSegment, Point, QuadSegment, Writer};
 
 /// What can go wrong writing a graphic.
 ///
@@ -105,6 +108,10 @@ pub enum EncodeError {
         /// How many were supplied.
         found: usize,
     },
+    /// A geometry op with no repetitions. Every run needs at least one.
+    EmptyRun,
+    /// An ellipse with a quarter count outside 1 to 4.
+    EllipseQuartersOutOfRange(u8),
 }
 
 impl core::fmt::Display for EncodeError {
@@ -141,6 +148,10 @@ impl core::fmt::Display for EncodeError {
                 f,
                 "this gradient kind needs {expected} transform values, not {found}",
             ),
+            Self::EmptyRun => f.write_str("a geometry op needs at least one repetition"),
+            Self::EllipseQuartersOutOfRange(q) => {
+                write!(f, "an ellipse takes 1 to 4 quarters, not {q}")
+            },
             Self::BlendReadsAsColor { packed } => write!(
                 f,
                 "blend packs to {packed:#010X}, which is a sensible colour and \

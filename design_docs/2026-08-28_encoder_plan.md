@@ -1,7 +1,7 @@
 # Encoder Plan
 
 **Date:** 2026-08-28
-**Status:** in progress. **E1 and E2 landed 2026-08-28**; E3-E4 open.
+**Status:** in progress. **E1 and E2 landed 2026-08-28, E3 on 2026-08-29**; E4 open.
 **Scope:** add an encode side to `emblem`, making it a complete IconVG
 implementation: declarative input in, deterministic `.ivg` bytes out. The
 motivating consumer is mere's derived node faces
@@ -301,3 +301,41 @@ distinct colours.
 no-op — the VM only calls `sink.fill` when a path is pending — so every fill
 test needs a path first. E2's tests use a minimal `0x01` line-to for this;
 E3 supplies the real thing.
+
+### E3 receipt (2026-08-29)
+
+Landed as `src/encode/writer.rs`. `Writer` emits the geometry ops (line, quad
+and cubic runs; ellipse; parallelogram; close-and-move), forwards styling to
+`StyleWriter`, and frames a complete file: magic, metadata chunks in ascending
+MID order, bytecode. 147 tests green (from 127), clippy and rustdoc clean.
+
+**The headline done-condition is met: the encoder reproduces the
+specification's 36-byte action/info icon byte for byte**, through the public
+API, and the rebuilt file decodes to the identical call sequence as the
+original. That is the conformance bar the plan set from the decoder's side,
+now met from the encoder's.
+
+Also done: line/quad/cubic runs round-trip through the decoder; runs of 1, 15,
+16, 17, 40 and 300 segments round-trip with every point intact, exercising both
+the inline count and the biased-natural form and the split across ops; each
+ellipse quarter count yields that many cubics; ViewBox and suggested-palette
+chunks round-trip; a 200-case deterministic fuzz over random paths round-trips
+without panics and within the four-byte quantization bound; whole-file
+encoding is byte-identical across repeated runs.
+
+**Two framing rules, both pure functions of the input so determinism holds:**
+the ViewBox chunk is written only when it differs from the specification's
+`(-32, -32, +32, +32)` default, since an absent chunk means exactly that; the
+suggested palette only when supplied. An icon is often a few dozen bytes, so a
+redundant chunk is a meaningful fraction of one.
+
+**Note on the byte-exactness test.** It failed first on two coordinates, and
+the encoder was right both times — the reconstruction was wrong. Decoding the
+specification's own bytes settled it: the ellipse's first point is `0x59`,
+which is -20.0 rather than +20.0, and the last parallelogram's final coordinate
+is `0x6d`, -10.0 rather than -14.0. Worth recording because it is the failure
+mode this test exists to catch: a plausible-looking icon that draws something
+subtly different. The byte comparison caught what a visual check would not.
+
+Public types `Point`, `QuadSegment` and `CubeSegment` were introduced on
+clippy's prompting; they read better than the raw nested tuples anyway.

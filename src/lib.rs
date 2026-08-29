@@ -109,7 +109,7 @@ pub mod sink;
 pub mod vm;
 
 pub use color::{Palette, Registers, Rgba, built_in_palette};
-pub use encode::EncodeError;
+pub use encode::{EncodeError, Writer};
 pub use meta::{MAGIC, Metadata, ViewBox};
 pub use sink::{Call, GradientKind, Matrix, Paint, Recorder, Sink, Spread, Stop};
 pub use vm::{Host, execute};
