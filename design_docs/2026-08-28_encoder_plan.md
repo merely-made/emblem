@@ -1,7 +1,7 @@
 # Encoder Plan
 
 **Date:** 2026-08-28
-**Status:** in progress. **E1 and E2 landed 2026-08-28, E3 on 2026-08-29**; E4 open.
+**Status:** **E1-E4 all landed** (E1-E2 on 2026-08-28, E3-E4 on 2026-08-29). The encoder is feature-complete; what remains is the 0.2.0 publish. E5 stays unopened.
 **Scope:** add an encode side to `emblem`, making it a complete IconVG
 implementation: declarative input in, deterministic `.ivg` bytes out. The
 motivating consumer is mere's derived node faces
@@ -339,3 +339,40 @@ subtly different. The byte comparison caught what a visual check would not.
 
 Public types `Point`, `QuadSegment` and `CubeSegment` were introduced on
 clippy's prompting; they read better than the raw nested tuples anyway.
+
+### E4 receipt (2026-08-29)
+
+`Writer::level_of_detail(lod0, lod1, build)` emits op `0x3A`: the branch body
+is drawn only when the rasterization height falls in `[lod0, lod1)`. Two calls
+with abutting ranges give the two-arm icon the derived-faces plan wants — a
+bold simple glyph far out, the full figure near, chosen by the VM rather than
+by the caller. 157 tests green (from 147), clippy and rustdoc clean.
+
+Done-condition met and then some: a two-arm icon draws one line below the
+threshold and three at or above it; the switch is verified at the exact bound
+(31.9 vs 32.0) and shown to be half-open; a six-op arm is skipped whole; and
+**nested branches skip correctly**, which is the case where an op count that
+failed to treat an inner jump plus its body as a unit would desync the walk.
+
+**The design point is that the jump counts ops, not bytes.** `Writer` now
+tracks an op count, the arm is built into a sub-writer and measured, then the
+jump is written with that count and the arm appended.
+
+**The hazard, and the guard it earned:** a skipped arm never runs its ops, so
+if an arm moved `SEL`, the value after the branch would depend on which arm
+the host chose, and every later slot would address a different register in
+different renderings — the same class of silent wrongness as the SEL bug fixed
+in `d2a71b5`, but host-dependent and therefore worse. An arm that does not
+restore `SEL` is refused (`EncodeError::LodArmChangesSel`) rather than
+emitted. The tests pin both spellings of the trap: an explicit `adjust_sel`,
+and the subtler `fill_flat(0)`, which increments `SEL` as a side effect of
+slot zero and would otherwise slip through unnoticed.
+
+## Remaining before 0.2.0
+
+- bump the version, and widen the crate description and README, which both
+  still say decoder-only;
+- publish, which per the license sweep plan's invariant 8 is also the point at
+  which MPL-2.0 reaches crates.io;
+- decide the disposition of published 0.1.0, whose decode of any palette-using
+  file is wrong (the SEL bug). Yanking is Mark's call.

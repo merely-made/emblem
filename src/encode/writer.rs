@@ -68,6 +68,8 @@ pub struct Writer {
     style: StyleWriter,
     view_box: ViewBox,
     suggested_palette: Option<Palette>,
+    /// Ops written, which a level-of-detail jump counts rather than bytes.
+    ops: usize,
 }
 
 impl Writer {
@@ -78,6 +80,7 @@ impl Writer {
             style: StyleWriter::new(),
             view_box,
             suggested_palette: None,
+            ops: 0,
         }
     }
 
@@ -109,6 +112,7 @@ impl Writer {
 
     /// Close any open subpath and start a new one at `(x, y)`. Op `0x35`.
     pub fn move_to(&mut self, x: f32, y: f32) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.body.push(0x35);
         num::coordinate(x, &mut self.body)?;
         num::coordinate(y, &mut self.body)?;
@@ -146,6 +150,7 @@ impl Writer {
         if !(1..=4).contains(&quarters) {
             return Err(EncodeError::EllipseQuartersOutOfRange(quarters));
         }
+        self.ops += 1;
         self.body.push(0x30 + quarters - 1);
         self.pair(b)?;
         self.pair(c)
@@ -154,6 +159,7 @@ impl Writer {
     /// A parallelogram with corners at the pen, `b`, `c`, and the implied
     /// fourth. Op `0x34`.
     pub fn parallelogram(&mut self, b: Point, c: Point) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.body.push(0x34);
         self.pair(b)?;
         self.pair(c)
@@ -192,6 +198,7 @@ impl Writer {
         let mut done = 0;
         while done < count {
             let take = (count - done).min(max_per_op);
+            self.ops += 1;
             if take <= INLINE_REPS_MAX {
                 self.body.push(base | (take as u8));
             } else {
@@ -210,11 +217,13 @@ impl Writer {
 
     /// Move `SEL` by `delta`.
     pub fn adjust_sel(&mut self, delta: u8) {
+        self.ops += 1;
         self.style.adjust_sel(delta, &mut self.body);
     }
 
     /// Put a literal colour and stop position into slot `slot`.
     pub fn set_color(&mut self, slot: u8, color: Rgba, stop: f32) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.style.set_color(slot, color, stop, &mut self.body)
     }
 
@@ -227,17 +236,20 @@ impl Writer {
         blend: u8,
         stop: f32,
     ) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.style
             .set_blend(slot, zero, one, blend, stop, &mut self.body)
     }
 
     /// Write several consecutive registers.
     pub fn set_registers(&mut self, values: &[u64]) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.style.set_registers(values, &mut self.body)
     }
 
     /// Fill the accumulated path from slot `slot`.
     pub fn fill_flat(&mut self, slot: u8) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.style.fill_flat(slot, &mut self.body)
     }
 
@@ -250,8 +262,96 @@ impl Writer {
         stop_count: usize,
         nominal: &[f32],
     ) -> Result<(), EncodeError> {
+        self.ops += 1;
         self.style
             .fill_gradient(slot, kind, spread, stop_count, nominal, &mut self.body)
+    }
+
+    // --- level of detail ----------------------------------------------------
+
+    /// Emit a branch whose body is drawn only when the rasterization height
+    /// falls in `[lod0, lod1)`.
+    ///
+    /// This is how one file carries a bold simple glyph for small sizes and a
+    /// detailed figure for large ones, chosen by the VM rather than by the
+    /// caller. Two calls with abutting ranges make the usual two-arm icon:
+    ///
+    /// ```
+    /// use emblem::encode::Writer;
+    /// use emblem::ViewBox;
+    ///
+    /// let mut w = Writer::new(ViewBox::default());
+    /// w.level_of_detail(0.0, 32.0, |arm| {
+    ///     arm.move_to(0.0, 0.0)?;
+    ///     arm.line_to(&[(8.0, 8.0)])?;
+    ///     arm.fill_flat(8)
+    /// }).unwrap();
+    /// w.level_of_detail(32.0, f32::INFINITY, |arm| {
+    ///     arm.move_to(0.0, 0.0)?;
+    ///     arm.line_to(&[(1.0, 1.0), (2.0, 4.0), (8.0, 8.0)])?;
+    ///     arm.fill_flat(8)
+    /// }).unwrap();
+    /// ```
+    ///
+    /// # `SEL` must come back where it started
+    ///
+    /// The op counts a *jump over ops*, so the body is built first and
+    /// measured, then the jump written with that count. The subtle part is
+    /// `SEL`: an arm that is skipped never runs its register ops, so if an arm
+    /// moved `SEL` the value after the branch would depend on which arm the
+    /// host chose, and every later slot would address a different register in
+    /// different renderings. An arm that does not restore `SEL` is therefore
+    /// refused rather than silently emitted.
+    pub fn level_of_detail<F>(
+        &mut self,
+        lod0: f32,
+        lod1: f32,
+        build: F,
+    ) -> Result<(), EncodeError>
+    where
+        F: FnOnce(&mut Writer) -> Result<(), EncodeError>,
+    {
+        if lod0.is_nan() || lod1.is_nan() {
+            return Err(EncodeError::NotANumber);
+        }
+        // NaN is already excluded above, so a plain comparison is exact here.
+        if lod0 > lod1 {
+            return Err(EncodeError::LodRangeInverted { lod0, lod1 });
+        }
+
+        // Build the arm against a writer that starts where this one is, so the
+        // arm's slots mean what the caller expects.
+        let mut arm = Writer::new(self.view_box);
+        arm.style = self.style;
+        build(&mut arm)?;
+
+        if arm.style.sel() != self.style.sel() {
+            return Err(EncodeError::LodArmChangesSel {
+                entry: self.style.sel(),
+                exit: arm.style.sel(),
+            });
+        }
+        if arm.ops == 0 {
+            return Err(EncodeError::EmptyRun);
+        }
+
+        // The jump is taken -- skipping the arm -- unless the height falls in
+        // the range, so the count is exactly the arm's op count.
+        self.ops += 1;
+        self.body.push(0x3A);
+        num::natural(arm.ops as u32, &mut self.body)?;
+        num::coordinate(lod0, &mut self.body)?;
+        num::coordinate(lod1, &mut self.body)?;
+
+        self.body.extend_from_slice(&arm.body);
+        self.ops += arm.ops;
+        Ok(())
+    }
+
+    /// How many ops have been written. A level-of-detail jump counts ops, not
+    /// bytes, which is why this is tracked.
+    pub fn op_count(&self) -> usize {
+        self.ops
     }
 
     // --- assembly -----------------------------------------------------------
@@ -597,6 +697,203 @@ mod tests {
                     "case {case}: {got:?} vs {want:?}",
                 );
             }
+        }
+    }
+
+    // ---- level of detail ----------------------------------------------------
+
+    /// Run a file at a given rasterization height.
+    fn run_at_height(file: &[u8], height: f32) -> Vec<Call> {
+        let (_, start) = decode_metadata(file).expect("metadata");
+        let mut sink = Recorder::default();
+        execute(
+            file,
+            start,
+            &Palette::default(),
+            Host { features: 0, height },
+            &mut sink,
+        )
+        .expect("execution");
+        sink.calls
+    }
+
+    fn line_count(calls: &[Call]) -> usize {
+        calls.iter().filter(|c| matches!(c, Call::LineTo(..))).count()
+    }
+
+    /// A two-arm icon: one line below height 32, three lines at or above it.
+    fn two_arm_icon() -> Vec<u8> {
+        let mut w = Writer::new(view_box(-16.0, -16.0, 16.0, 16.0));
+        w.level_of_detail(0.0, 32.0, |arm| {
+            arm.move_to(0.0, 0.0)?;
+            arm.line_to(&[(8.0, 8.0)])?;
+            arm.fill_flat(8)
+        })
+        .unwrap();
+        w.level_of_detail(32.0, f32::INFINITY, |arm| {
+            arm.move_to(0.0, 0.0)?;
+            arm.line_to(&[(1.0, 1.0), (2.0, 4.0), (8.0, 8.0)])?;
+            arm.fill_flat(8)
+        })
+        .unwrap();
+        w.finish().unwrap()
+    }
+
+    #[test]
+    fn a_two_arm_icon_draws_a_different_arm_at_each_extreme() {
+        let file = two_arm_icon();
+        let small = run_at_height(&file, 16.0);
+        let large = run_at_height(&file, 64.0);
+
+        assert_eq!(line_count(&small), 1, "the simple arm below the threshold");
+        assert_eq!(line_count(&large), 3, "the detailed arm above it");
+        assert_ne!(small, large, "the arms must actually differ");
+
+        // Exactly one arm runs, so exactly one fill happens either way.
+        let fills = |calls: &[Call]| calls.iter().filter(|c| matches!(c, Call::Fill(_))).count();
+        assert_eq!(fills(&small), 1);
+        assert_eq!(fills(&large), 1);
+    }
+
+    #[test]
+    fn the_arm_switches_exactly_at_the_threshold() {
+        let file = two_arm_icon();
+        let lines = |h: f32| line_count(&run_at_height(&file, h));
+        // The range is half-open: [0, 32) takes the simple arm, 32 does not.
+        assert_eq!(lines(31.9), 1);
+        assert_eq!(lines(32.0), 3, "the upper bound is exclusive");
+        assert_eq!(lines(0.0), 1, "the lower bound is inclusive");
+    }
+
+    #[test]
+    fn a_lod_arm_may_hold_several_ops_and_still_be_skipped_whole() {
+        let mut w = Writer::new(ViewBox::default());
+        w.move_to(0.0, 0.0).unwrap();
+        w.level_of_detail(1000.0, 2000.0, |arm| {
+            for i in 0..6 {
+                arm.line_to(&[(i as f32, i as f32)])?;
+            }
+            Ok(())
+        })
+        .unwrap();
+        w.line_to(&[(9.0, 9.0)]).unwrap();
+        w.fill_flat(8).unwrap();
+        let file = w.finish().unwrap();
+
+        // Far below the range: the whole arm is skipped, leaving one line.
+        let calls = run_at_height(&file, 10.0);
+        let lines: Vec<&Call> = calls.iter().filter(|c| matches!(c, Call::LineTo(..))).collect();
+        assert_eq!(lines.len(), 1, "only the line after the branch");
+        assert_eq!(*lines[0], Call::LineTo(9.0, 9.0));
+
+        // Inside it: the arm runs too.
+        assert_eq!(line_count(&run_at_height(&file, 1500.0)), 7);
+    }
+
+    #[test]
+    fn nested_lod_branches_skip_correctly() {
+        // An outer arm containing an inner branch: the outer op count must
+        // cover the inner jump and its body as a unit.
+        let mut w = Writer::new(ViewBox::default());
+        w.move_to(0.0, 0.0).unwrap();
+        w.level_of_detail(0.0, 100.0, |outer| {
+            outer.line_to(&[(1.0, 1.0)])?;
+            outer.level_of_detail(0.0, 50.0, |inner| inner.line_to(&[(2.0, 2.0)]))?;
+            outer.line_to(&[(3.0, 3.0)])
+        })
+        .unwrap();
+        w.fill_flat(8).unwrap();
+        let file = w.finish().unwrap();
+
+        let count = |h: f32| line_count(&run_at_height(&file, h));
+        assert_eq!(count(25.0), 3, "outer and inner both run");
+        assert_eq!(count(75.0), 2, "outer runs, inner is skipped");
+        assert_eq!(count(150.0), 0, "the whole outer arm is skipped");
+    }
+
+    #[test]
+    fn an_arm_that_moves_sel_is_refused() {
+        // A skipped arm never runs, so SEL after the branch would depend on the
+        // host's height and every later slot would address a different register.
+        let mut w = Writer::new(ViewBox::default());
+        let err = w
+            .level_of_detail(0.0, 32.0, |arm| {
+                arm.adjust_sel(3);
+                arm.line_to(&[(1.0, 1.0)])
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, EncodeError::LodArmChangesSel { .. }),
+            "expected a SEL-drift refusal, got {err:?}",
+        );
+
+        // An arm that puts SEL back is fine.
+        let mut w = Writer::new(ViewBox::default());
+        w.level_of_detail(0.0, 32.0, |arm| {
+            arm.adjust_sel(3);
+            arm.adjust_sel(61); // 3 + 61 = 64, which is 0 modulo 64
+            arm.line_to(&[(1.0, 1.0)])
+        })
+        .unwrap();
+        assert_eq!(w.sel(), StyleWriter::new().sel(), "SEL unchanged outside");
+    }
+
+    #[test]
+    fn a_slot_zero_fill_inside_an_arm_is_caught() {
+        // fill_flat(0) increments SEL, so an arm using it does not restore SEL.
+        let mut w = Writer::new(ViewBox::default());
+        let err = w
+            .level_of_detail(0.0, 32.0, |arm| {
+                arm.line_to(&[(1.0, 1.0)])?;
+                arm.fill_flat(0)
+            })
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            EncodeError::LodArmChangesSel { entry: 56, exit: 57 }
+        ));
+    }
+
+    #[test]
+    fn inverted_and_empty_lod_ranges_are_refused() {
+        let mut w = Writer::new(ViewBox::default());
+        assert!(matches!(
+            w.level_of_detail(32.0, 0.0, |arm| arm.line_to(&[(1.0, 1.0)])),
+            Err(EncodeError::LodRangeInverted { .. })
+        ));
+        assert!(matches!(
+            w.level_of_detail(f32::NAN, 1.0, |arm| arm.line_to(&[(1.0, 1.0)])),
+            Err(EncodeError::NotANumber)
+        ));
+        assert!(matches!(
+            w.level_of_detail(0.0, 32.0, |_| Ok(())),
+            Err(EncodeError::EmptyRun)
+        ));
+    }
+
+    #[test]
+    fn the_op_count_matches_what_was_written() {
+        let mut w = Writer::new(ViewBox::default());
+        w.move_to(0.0, 0.0).unwrap();
+        w.line_to(&[(1.0, 1.0)]).unwrap();
+        w.fill_flat(8).unwrap();
+        assert_eq!(w.op_count(), 3);
+
+        // A branch counts as the jump plus its arm.
+        let mut w = Writer::new(ViewBox::default());
+        w.level_of_detail(0.0, 32.0, |arm| {
+            arm.move_to(0.0, 0.0)?;
+            arm.line_to(&[(1.0, 1.0)])
+        })
+        .unwrap();
+        assert_eq!(w.op_count(), 3, "one jump plus two arm ops");
+    }
+
+    #[test]
+    fn a_lod_icon_is_deterministic() {
+        let once = two_arm_icon();
+        for _ in 0..8 {
+            assert_eq!(two_arm_icon(), once);
         }
     }
 

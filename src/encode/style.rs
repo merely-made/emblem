@@ -649,7 +649,8 @@ mod tests {
         let mut w = StyleWriter::new();
         let mut out = Vec::new();
         w.set_registers(&[0; 17], &mut out).unwrap();
-        w.fill_gradient(1, GradientKind::Linear, Spread::Pad, MAX_GRADIENT_STOPS, &[0.0; 3], &mut out)
+        let stops = MAX_GRADIENT_STOPS;
+        w.fill_gradient(1, GradientKind::Linear, Spread::Pad, stops, &[0.0; 3], &mut out)
             .unwrap();
         let config = out[out.len() - 13];
         assert_eq!(config & 0x3F, 62, "the largest legal stop encoding");

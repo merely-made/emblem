@@ -112,6 +112,24 @@ pub enum EncodeError {
     EmptyRun,
     /// An ellipse with a quarter count outside 1 to 4.
     EllipseQuartersOutOfRange(u8),
+    /// A level-of-detail range whose upper bound is below its lower one.
+    LodRangeInverted {
+        /// The lower bound given.
+        lod0: f32,
+        /// The upper bound given.
+        lod1: f32,
+    },
+    /// A level-of-detail arm that left `SEL` somewhere other than it found it.
+    ///
+    /// A skipped arm never runs its ops, so `SEL` after the branch would
+    /// depend on which arm the host chose and every later slot would address a
+    /// different register in different renderings.
+    LodArmChangesSel {
+        /// `SEL` on entering the arm.
+        entry: u8,
+        /// `SEL` the arm left behind.
+        exit: u8,
+    },
 }
 
 impl core::fmt::Display for EncodeError {
@@ -152,6 +170,14 @@ impl core::fmt::Display for EncodeError {
             Self::EllipseQuartersOutOfRange(q) => {
                 write!(f, "an ellipse takes 1 to 4 quarters, not {q}")
             },
+            Self::LodRangeInverted { lod0, lod1 } => {
+                write!(f, "level-of-detail range [{lod0}, {lod1}) is inverted")
+            },
+            Self::LodArmChangesSel { entry, exit } => write!(
+                f,
+                "a level-of-detail arm entered with SEL {entry} and left it at \
+                 {exit}; an arm must restore SEL, since a skipped arm never runs",
+            ),
             Self::BlendReadsAsColor { packed } => write!(
                 f,
                 "blend packs to {packed:#010X}, which is a sensible colour and \
