@@ -47,6 +47,9 @@
 use emblem::ViewBox;
 use emblem::encode::{EncodeError, Writer};
 
+#[cfg(feature = "vello")]
+pub mod vello;
+
 /// Bumping this changes every derived face. See the module docs.
 pub const DERIVATION_VERSION: u32 = 2;
 
