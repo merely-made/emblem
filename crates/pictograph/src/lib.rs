@@ -48,7 +48,7 @@ use emblem::ViewBox;
 use emblem::encode::{EncodeError, Writer};
 
 /// Bumping this changes every derived face. See the module docs.
-pub const DERIVATION_VERSION: u32 = 1;
+pub const DERIVATION_VERSION: u32 = 2;
 
 /// Cells across and down.
 pub const GRID: usize = 5;
@@ -163,6 +163,20 @@ impl Stream {
     }
 }
 
+/// Whether a cell is the row-major representative of its symmetry orbit.
+///
+/// Sampling exactly one representative matters because each sample advances
+/// the seeded stream. Sampling a mirrored cell again would overwrite the first
+/// value and make the parameter mapping depend on redundant draws.
+fn is_independent_cell(symmetry: Symmetry, row: usize, col: usize) -> bool {
+    let (mirror_row, mirror_col) = (GRID - 1 - row, GRID - 1 - col);
+    match symmetry {
+        Symmetry::MirrorX => col <= mirror_col,
+        Symmetry::MirrorBoth => row <= mirror_row && col <= mirror_col,
+        Symmetry::Rotate180 => (row, col) <= (mirror_row, mirror_col),
+    }
+}
+
 /// Resolve a content address to its parameters.
 pub fn params_of(address: &[u8]) -> Params {
     let mut stream = Stream(seed_of(address));
@@ -198,14 +212,11 @@ pub fn params_of(address: &[u8]) -> Params {
     let mut cells = [[Cell::Empty; GRID]; GRID];
     // Only the independent region is drawn from the stream; symmetry supplies
     // the rest, which is what makes a face read as designed rather than noisy.
-    let (free_cols, free_rows) = match symmetry {
-        Symmetry::MirrorX => (GRID.div_ceil(2), GRID),
-        Symmetry::MirrorBoth => (GRID.div_ceil(2), GRID.div_ceil(2)),
-        Symmetry::Rotate180 => (GRID, GRID.div_ceil(2)),
-    };
-
-    for row in 0..free_rows {
-        for col in 0..free_cols {
+    for row in 0..GRID {
+        for col in 0..GRID {
+            if !is_independent_cell(symmetry, row, col) {
+                continue;
+            }
             let cell = if stream.below(16) < fill_chance {
                 if stream.below(16) < accent_chance {
                     Cell::Accent
@@ -223,7 +234,7 @@ pub fn params_of(address: &[u8]) -> Params {
                     cells[row][mirror_col] = cell;
                     cells[mirror_row][col] = cell;
                     cells[mirror_row][mirror_col] = cell;
-                },
+                }
                 Symmetry::Rotate180 => cells[mirror_row][mirror_col] = cell,
             }
         }
@@ -267,9 +278,10 @@ pub fn encode(params: &Params) -> Result<Vec<u8>, EncodeError> {
     // The large arm: every filled cell, primary group then accent group, each
     // group drawn as one path and filled once.
     w.level_of_detail(LOD_THRESHOLD, f32::INFINITY, |arm| {
-        for (group, palette_entry) in
-            [(Cell::Primary, params.primary), (Cell::Accent, params.accent)]
-        {
+        for (group, palette_entry) in [
+            (Cell::Primary, params.primary),
+            (Cell::Accent, params.accent),
+        ] {
             let mut drew = false;
             for row in 0..GRID {
                 for col in 0..GRID {
@@ -418,7 +430,7 @@ mod tests {
         hash
     }
 
-    /// The golden fixtures: committed values pinning the whole derivation.
+    /// The digest-pinned fixtures: committed values pinning the derivation.
     ///
     /// These literals are the point. A test that recomputed both sides would
     /// pass no matter how the grammar changed, which is no test at all. When
@@ -426,19 +438,23 @@ mod tests {
     /// changed** — so the response is to bump [`DERIVATION_VERSION`]
     /// deliberately and then update these, never to quietly update these.
     #[test]
-    fn the_derivation_matches_its_golden_fixtures() {
+    fn the_derivation_matches_its_digest_pinned_fixtures() {
         // (address, byte length, digest, filled cells)
         const GOLDEN: [(&[u8], usize, u64, usize); 4] = [
-            (b"", 131, 0x32B9_ECD0_2D65_C0DC, 13),
-            (b"a", 91, 0xBA15_21E8_9C38_6853, 8),
-            (b"pictograph", 179, 0x612A_82EC_670A_4913, 19),
-            (b"\x00\x01\x02\x03", 115, 0xA4D4_7052_F8B7_0751, 11),
+            (b"", 51, 0x688D_4036_1B63_DB24, 3),
+            (b"a", 147, 0xDF7E_ECEC_A190_53D7, 15),
+            (b"pictograph", 171, 0x04D6_6F6B_690B_F810, 18),
+            (b"\x00\x01\x02\x03", 187, 0xF844_3002_6212_9CAA, 20),
         ];
         for (address, len, want, filled) in GOLDEN {
             let face = derive(address).unwrap();
             assert_eq!(face.len(), len, "length for {address:?}");
             assert_eq!(digest(&face), want, "digest for {address:?}");
-            assert_eq!(params_of(address).filled_count(), filled, "cells for {address:?}");
+            assert_eq!(
+                params_of(address).filled_count(),
+                filled,
+                "cells for {address:?}"
+            );
         }
     }
 
@@ -569,7 +585,10 @@ mod tests {
     #[test]
     fn a_face_is_never_blank() {
         for address in addresses() {
-            assert!(params_of(&address).filled_count() > 0, "address {address:?}");
+            assert!(
+                params_of(&address).filled_count() > 0,
+                "address {address:?}"
+            );
         }
     }
 
@@ -580,12 +599,63 @@ mod tests {
             for row in 0..GRID {
                 for col in 0..GRID {
                     let (mr, mc) = (GRID - 1 - row, GRID - 1 - col);
-                    let (here, mirrored) = match p.symmetry {
-                        Symmetry::MirrorX => (p.cells[row][col], p.cells[row][mc]),
-                        Symmetry::MirrorBoth => (p.cells[row][col], p.cells[mr][mc]),
-                        Symmetry::Rotate180 => (p.cells[row][col], p.cells[mr][mc]),
+                    let here = p.cells[row][col];
+                    match p.symmetry {
+                        Symmetry::MirrorX => {
+                            assert_eq!(here, p.cells[row][mc], "mirror-X at ({row},{col})");
+                        }
+                        Symmetry::MirrorBoth => {
+                            assert_eq!(
+                                here, p.cells[row][mc],
+                                "mirror-both horizontal at ({row},{col})"
+                            );
+                            assert_eq!(
+                                here, p.cells[mr][col],
+                                "mirror-both vertical at ({row},{col})"
+                            );
+                        }
+                        Symmetry::Rotate180 => {
+                            assert_eq!(here, p.cells[mr][mc], "rotate-180 at ({row},{col})");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn independent_regions_sample_each_orbit_once() {
+        for (symmetry, expected) in [
+            (Symmetry::MirrorX, 15),
+            (Symmetry::MirrorBoth, 9),
+            (Symmetry::Rotate180, 13),
+        ] {
+            let sampled = (0..GRID)
+                .flat_map(|row| (0..GRID).map(move |col| (row, col)))
+                .filter(|&(row, col)| is_independent_cell(symmetry, row, col))
+                .count();
+            assert_eq!(sampled, expected, "{symmetry:?}");
+
+            for row in 0..GRID {
+                for col in 0..GRID {
+                    let (mr, mc) = (GRID - 1 - row, GRID - 1 - col);
+                    let orbit: std::collections::HashSet<_> = match symmetry {
+                        Symmetry::MirrorX => [(row, col), (row, mc)].into_iter().collect(),
+                        Symmetry::MirrorBoth => [(row, col), (row, mc), (mr, col), (mr, mc)]
+                            .into_iter()
+                            .collect(),
+                        Symmetry::Rotate180 => [(row, col), (mr, mc)].into_iter().collect(),
                     };
-                    assert_eq!(here, mirrored, "{:?} at ({row},{col})", p.symmetry);
+                    let representatives = orbit
+                        .into_iter()
+                        .filter(|&(orbit_row, orbit_col)| {
+                            is_independent_cell(symmetry, orbit_row, orbit_col)
+                        })
+                        .count();
+                    assert_eq!(
+                        representatives, 1,
+                        "{symmetry:?} orbit containing ({row},{col})"
+                    );
                 }
             }
         }
