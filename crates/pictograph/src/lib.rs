@@ -30,8 +30,9 @@
 //! bug, not a shortcut.
 //!
 //! **Scale-aware.** Each face carries two arms behind a level-of-detail
-//! branch: a single bold silhouette when drawn small, the full figure when
-//! drawn large. The decoder picks; the caller does nothing.
+//! branch: a coarse 3x3 silhouette when drawn small, the full 5x5 figure when
+//! drawn large. At Canvas's normal 25.92px face height, every coarse cell is
+//! 8.1px wide. The decoder picks; the caller does nothing.
 //!
 //! # Versioning
 //!
@@ -51,13 +52,21 @@ use emblem::encode::{EncodeError, Writer};
 pub mod vello;
 
 /// Bumping this changes every derived face. See the module docs.
-pub const DERIVATION_VERSION: u32 = 2;
+pub const DERIVATION_VERSION: u32 = 3;
 
 /// Cells across and down.
 pub const GRID: usize = 5;
 
 /// A cell's side, in graphic units.
 const CELL: i32 = 12;
+
+/// Cells across and down in the deliberately coarse small arm.
+const SMALL_GRID: usize = 3;
+
+/// A small-arm cell's side, in graphic units. At Canvas's normal 25.92px
+/// face height this is 8.1 physical pixels, large enough to remain a shape
+/// rather than anti-aliased texture.
+const SMALL_CELL: i32 = 20;
 
 /// The grid's top-left corner. `GRID * CELL` is 60, centred in the default
 /// ViewBox's 64 units, which leaves a two-unit margin and — the reason for
@@ -183,7 +192,6 @@ fn is_independent_cell(symmetry: Symmetry, row: usize, col: usize) -> bool {
 /// Resolve a content address to its parameters.
 pub fn params_of(address: &[u8]) -> Params {
     let mut stream = Stream(seed_of(address));
-
     let symmetry = match stream.below(3) {
         0 => Symmetry::MirrorX,
         1 => Symmetry::MirrorBoth,
@@ -270,11 +278,25 @@ pub fn derive(address: &[u8]) -> Result<Vec<u8>, EncodeError> {
 pub fn encode(params: &Params) -> Result<Vec<u8>, EncodeError> {
     let mut w = Writer::new(ViewBox::default());
 
-    // The small arm: one bold shape covering everything that is filled, in the
-    // primary colour. At a few pixels across, detail is noise.
-    let bounds = filled_bounds(params);
+    // The small arm is a 3x3 majority reduction of the detailed 5x5 grid. It
+    // retains the face's coarse geometry but makes every feature 20 graphic
+    // units wide (8.1px at Canvas's regular 25.92px face height). The old
+    // bounding rectangle was bold but lost almost every address-specific
+    // distinction at that size.
+    let small = small_cells(params);
     w.level_of_detail(0.0, LOD_THRESHOLD, |arm| {
-        block(arm, bounds.0, bounds.1, bounds.2, bounds.3)?;
+        for (row, cells) in small.iter().enumerate() {
+            for (col, filled) in cells.iter().enumerate() {
+                if !filled {
+                    continue;
+                }
+                let (x0, y0) = (
+                    ORIGIN + (col as i32) * SMALL_CELL,
+                    ORIGIN + (row as i32) * SMALL_CELL,
+                );
+                block(arm, x0, y0, x0 + SMALL_CELL, y0 + SMALL_CELL)?;
+            }
+        }
         arm.fill_flat(slot_for(params.primary))
     })?;
 
@@ -319,29 +341,44 @@ fn slot_for(entry: u8) -> u8 {
     FIRST_PALETTE_SLOT + (entry % PALETTE_SPAN)
 }
 
-/// The bounding box of the filled cells, in graphic units.
-fn filled_bounds(params: &Params) -> (i32, i32, i32, i32) {
-    let (mut min_col, mut min_row) = (GRID, GRID);
-    let (mut max_col, mut max_row) = (0usize, 0usize);
-    for row in 0..GRID {
-        for col in 0..GRID {
-            if params.cells[row][col] == Cell::Empty {
-                continue;
-            }
-            min_col = min_col.min(col);
-            max_col = max_col.max(col);
-            min_row = min_row.min(row);
-            max_row = max_row.max(row);
+/// Reduce the detailed 5x5 grid to its small-arm 3x3 silhouette.
+///
+/// The middle row and column remain literal centre cells; the four outer
+/// rows/columns become paired bands. A coarse cell is filled when at least
+/// half of its source cells are filled. This makes an outer 2x2 region require
+/// two detailed cells, avoiding the near-solid silhouettes that an "any cell"
+/// reduction creates on dense faces. Empty reductions resolve to the centre,
+/// keeping the IconVG arm non-empty without breaking any supported symmetry.
+fn small_cells(params: &Params) -> [[bool; SMALL_GRID]; SMALL_GRID] {
+    let mut small = [[false; SMALL_GRID]; SMALL_GRID];
+    for (small_row, row) in small.iter_mut().enumerate() {
+        let (source_row_start, source_row_end) = small_source_span(small_row);
+        for (small_col, filled) in row.iter_mut().enumerate() {
+            let (source_col_start, source_col_end) = small_source_span(small_col);
+            let total = (source_row_end - source_row_start) * (source_col_end - source_col_start);
+            let source_filled = (source_row_start..source_row_end)
+                .flat_map(|row| {
+                    (source_col_start..source_col_end).map(move |col| params.is_filled(col, row))
+                })
+                .filter(|filled| *filled)
+                .count();
+            *filled = source_filled * 2 >= total;
         }
     }
-    // `params_of` guarantees at least one filled cell.
-    debug_assert!(min_col < GRID, "a face must have at least one filled cell");
-    (
-        ORIGIN + (min_col as i32) * CELL,
-        ORIGIN + (min_row as i32) * CELL,
-        ORIGIN + (max_col as i32 + 1) * CELL,
-        ORIGIN + (max_row as i32 + 1) * CELL,
-    )
+    if small.iter().flatten().all(|filled| !filled) {
+        small[SMALL_GRID / 2][SMALL_GRID / 2] = true;
+    }
+    small
+}
+
+/// Map a coarse grid axis to a centred 5x5 source band.
+fn small_source_span(index: usize) -> (usize, usize) {
+    match index {
+        0 => (0, 2),
+        1 => (2, 3),
+        2 => (3, 5),
+        _ => unreachable!("small grid index must be in range"),
+    }
 }
 
 /// An axis-aligned rectangle, as one parallelogram op.
@@ -408,6 +445,32 @@ mod tests {
             .collect()
     }
 
+    /// Encode the coarse cells as a stable binary mask, row-major from bit 0.
+    fn small_mask(cells: [[bool; SMALL_GRID]; SMALL_GRID]) -> u16 {
+        cells.iter().enumerate().fold(0, |mask, (row, cells)| {
+            cells.iter().enumerate().fold(mask, |mask, (col, filled)| {
+                mask | (u16::from(*filled) << (row * SMALL_GRID + col))
+            })
+        })
+    }
+
+    /// Recover the 3x3 mask from the decoded low-detail arm. This checks the
+    /// actual IconVG choice at Canvas's normal face height, rather than only
+    /// checking the generator's intermediate representation.
+    fn decoded_small_mask(calls: &[Call]) -> u16 {
+        let mut mask = 0;
+        for call in calls {
+            let Call::MoveTo(x, y) = call else {
+                continue;
+            };
+            let col = ((*x as i32 - ORIGIN) / SMALL_CELL) as usize;
+            let row = ((*y as i32 - ORIGIN) / SMALL_CELL) as usize;
+            assert!(col < SMALL_GRID && row < SMALL_GRID, "move at ({x}, {y})");
+            mask |= 1 << (row * SMALL_GRID + col);
+        }
+        mask
+    }
+
     // ---- determinism --------------------------------------------------------
 
     #[test]
@@ -444,10 +507,10 @@ mod tests {
     fn the_derivation_matches_its_digest_pinned_fixtures() {
         // (address, byte length, digest, filled cells)
         const GOLDEN: [(&[u8], usize, u64, usize); 4] = [
-            (b"", 51, 0x688D_4036_1B63_DB24, 3),
-            (b"a", 147, 0xDF7E_ECEC_A190_53D7, 15),
-            (b"pictograph", 171, 0x04D6_6F6B_690B_F810, 18),
-            (b"\x00\x01\x02\x03", 187, 0xF844_3002_6212_9CAA, 20),
+            (b"", 83, 0x9B94_E95C_C9B2_B632, 6),
+            (b"a", 195, 0xEA2E_8F42_9779_FD95, 13),
+            (b"pictograph", 186, 0x81B8_7D5C_1E2D_21B1, 13),
+            (b"\x00\x01\x02\x03", 131, 0xB15F_8757_0B5F_5CCD, 9),
         ];
         for (address, len, want, filled) in GOLDEN {
             let face = derive(address).unwrap();
@@ -581,6 +644,38 @@ mod tests {
         let at = run(&face, &Palette::default(), LOD_THRESHOLD);
         assert_ne!(below, at, "the arm must change at the threshold");
         assert_eq!(fills(&below).len(), 1, "below is the single bold shape");
+    }
+
+    #[test]
+    fn the_default_height_small_arm_keeps_distinct_coarse_masks() {
+        // Canvas renders an ordinary 36px node face at 25.92px after its
+        // inset. A test at the LOD extreme would miss an accidental change to
+        // the actual product size.
+        const DEFAULT_FACE_HEIGHT: f32 = 25.92;
+
+        let mut masks = std::collections::HashMap::<u16, usize>::new();
+        for address in addresses() {
+            let expected = small_mask(small_cells(&params_of(&address)));
+            let face = derive(&address).unwrap();
+            let decoded = decoded_small_mask(&run(&face, &Palette::default(), DEFAULT_FACE_HEIGHT));
+            assert_eq!(decoded, expected, "decoded mask for {address:?}");
+            *masks.entry(decoded).or_default() += 1;
+        }
+
+        let unique = masks.len();
+        let largest_collision = masks.values().copied().max().unwrap_or(0);
+
+        // This corpus currently produces 30 masks, with at most eight faces
+        // sharing one. Keep a little room for an intentional future grammar
+        // change while preventing a return to the v2 one-rectangle arm.
+        assert!(
+            unique >= 30,
+            "only {unique} distinct default-height small masks"
+        );
+        assert!(
+            largest_collision <= 8,
+            "largest default-height mask collision was {largest_collision}"
+        );
     }
 
     // ---- structure ----------------------------------------------------------

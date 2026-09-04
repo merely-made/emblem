@@ -6,7 +6,7 @@ face out.
 A pictograph writes a picture. From a node's content address this derives a
 small symmetric mark, encoded as IconVG bytes by
 [emblem](https://crates.io/crates/emblem). Faces are compact: the current
-68-address test corpus spans 34 to 211 bytes, and the suite caps them below
+68-address test corpus spans 34 to 275 bytes, and the suite caps them below
 512 bytes.
 
 The word is the mechanism twice over: a pictograph is a pictorial sign that
@@ -27,8 +27,12 @@ So a face is re-themed by decoding it against a different palette — no
 re-derivation, no stored variants, and no register ops in the file at all.
 
 **Scale-aware.** Each face carries two arms behind a level-of-detail branch: a
-single bold silhouette when drawn small, the full figure when drawn large. The
-decoder chooses; the caller does nothing.
+coarse 3x3 silhouette when drawn small, the full 5x5 figure when drawn large.
+Each coarse cell is 8.1px wide at Canvas's normal 25.92px face height, so the
+small arm keeps address-specific geometry instead of collapsing to a coloured
+rectangle. Its 68-address default-height corpus has 30 distinct coarse masks;
+the largest collision is eight faces, versus 57 faces sharing the old
+bounding-rectangle silhouette. The decoder chooses; the caller does nothing.
 
 ## Use
 
