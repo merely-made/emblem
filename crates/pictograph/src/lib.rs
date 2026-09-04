@@ -620,7 +620,7 @@ mod tests {
             let small = run(&face, &Palette::default(), 8.0);
             let large = run(&face, &Palette::default(), 128.0);
 
-            // The small arm is exactly one shape and one fill, always.
+            // The small arm combines its coarse cells into one flat fill.
             assert_eq!(fills(&small).len(), 1, "address {address:?}");
             assert!(!fills(&large).is_empty(), "address {address:?}");
 
