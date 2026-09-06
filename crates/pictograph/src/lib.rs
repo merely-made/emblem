@@ -245,7 +245,7 @@ pub fn params_of(address: &[u8]) -> Params {
                     cells[row][mirror_col] = cell;
                     cells[mirror_row][col] = cell;
                     cells[mirror_row][mirror_col] = cell;
-                }
+                },
                 Symmetry::Rotate180 => cells[mirror_row][mirror_col] = cell,
             }
         }
@@ -701,7 +701,7 @@ mod tests {
                     match p.symmetry {
                         Symmetry::MirrorX => {
                             assert_eq!(here, p.cells[row][mc], "mirror-X at ({row},{col})");
-                        }
+                        },
                         Symmetry::MirrorBoth => {
                             assert_eq!(
                                 here, p.cells[row][mc],
@@ -711,10 +711,10 @@ mod tests {
                                 here, p.cells[mr][col],
                                 "mirror-both vertical at ({row},{col})"
                             );
-                        }
+                        },
                         Symmetry::Rotate180 => {
                             assert_eq!(here, p.cells[mr][mc], "rotate-180 at ({row},{col})");
-                        }
+                        },
                     }
                 }
             }

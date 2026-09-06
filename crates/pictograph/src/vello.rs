@@ -42,7 +42,7 @@ impl core::fmt::Display for Error {
             Self::Iconvg(error) => write!(f, "IconVG decode failed: {error}"),
             Self::InvalidGradientMatrix => {
                 f.write_str("IconVG gradient matrix cannot be represented by vello")
-            }
+            },
         }
     }
 }
@@ -139,7 +139,7 @@ impl VelloSink {
                     Gradient::new_radial(Point::ZERO, 1.0),
                     matrix_to_affine(inverse)?,
                 )
-            }
+            },
         };
 
         let extend = match spread {
@@ -194,12 +194,12 @@ impl VelloSink {
                 let strip = Rect::new(0.0, min_y, 1.0, max_y);
                 self.scene
                     .push_clip_layer(Fill::NonZero, brush_to_graphic, &strip);
-            }
+            },
             EmblemGradientKind::Radial => {
                 let disc = Circle::new(Point::ZERO, 1.0);
                 self.scene
                     .push_clip_layer(Fill::NonZero, brush_to_graphic, &disc);
-            }
+            },
         }
     }
 }
@@ -252,7 +252,7 @@ impl EmblemSink for VelloSink {
                     &path,
                 );
                 Ok(())
-            }
+            },
             Paint::Gradient {
                 kind,
                 spread,
