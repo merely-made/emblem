@@ -12,11 +12,67 @@ categories = ["graphics", "visualization"]
 [features]
 default = []
 vello = ["dep:netrender_vello"]
+# Graph-structural signals over the kernel graph (`pictograph::signals`).
+signals = ["dep:kernel", "dep:cartography", "dep:chartulary"]
+# The graph canvas (`pictograph::canvas`): graph truth presented through
+# seiche physics, the camera, the node-children pool and the scene-paint
+# underlay. Mere's facade exposes it as `mere::canvas`.
+canvas = [
+    "signals",
+    "dep:armillary",
+    "dep:cartography",
+    "dep:esp",
+    "dep:euclid",
+    "dep:forme",
+    "dep:genet-livery",
+    "dep:genet-scripted-dom",
+    "dep:kernel",
+    "dep:layout_dom_api",
+    "dep:netrender",
+    "dep:numen",
+    "dep:paint_list_api",
+    "dep:paint_list_render",
+    "dep:petgraph",
+    "dep:sceno",
+    "dep:scenomise",
+    "dep:seiche",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:tincture",
+    "dep:tracing",
+    "dep:tracing-subscriber",
+    "dep:uuid",
+]
 
 [dependencies]
 emblem.workspace = true
 netrender_vello = { workspace = true, optional = true }
+armillary = { workspace = true, optional = true }
+cartography = { workspace = true, optional = true }
+chartulary = { version = "0.2.1", path = "../../eidetic/chartulary", optional = true }
+esp = { workspace = true, optional = true }
+euclid = { version = "0.22", optional = true }
+forme = { workspace = true, optional = true }
+genet-livery = { workspace = true, optional = true }
+genet-scripted-dom = { workspace = true, optional = true }
+kernel = { workspace = true, optional = true }
+layout_dom_api = { workspace = true, optional = true }
+netrender = { workspace = true, optional = true }
+numen = { workspace = true, optional = true }
+paint_list_api = { workspace = true, optional = true }
+paint_list_render = { workspace = true, optional = true }
+petgraph = { version = "0.8.3", optional = true }
+sceno = { workspace = true, optional = true }
+scenomise = { workspace = true, optional = true }
+seiche = { workspace = true, optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+tincture = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+uuid = { version = "1", optional = true }
 
 [dev-dependencies]
+kernel = { workspace = true, features = ["fixtures"] }
 netrender_vello = { workspace = true, features = ["wgpu"] }
 netrender_device = "=0.1.2"

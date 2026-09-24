@@ -45,6 +45,15 @@
 
 #![doc(html_no_source)]
 
+// The graph canvas and the graph signals it reads, each behind its own
+// feature so the face derivation above stays light. They were the
+// `mere-canvas` and `mere-signals` crates until 2026-09-24; Mere's facade
+// exposes the canvas as `mere::canvas`.
+#[cfg(feature = "canvas")]
+pub mod canvas;
+#[cfg(feature = "signals")]
+pub mod signals;
+
 use emblem::ViewBox;
 use emblem::encode::{EncodeError, Writer};
 
