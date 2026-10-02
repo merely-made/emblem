@@ -14,6 +14,9 @@ default = []
 vello = ["dep:netrender_vello"]
 # Graph-structural signals over the kernel graph (`pictograph::signals`).
 signals = ["dep:kernel", "dep:cartography", "dep:chartulary"]
+# The canvas's and the board's repulsion staged on the host's GPU
+# (`Canvas::set_physics_device`; physics catalog plan, P5c). Opt-in per consumer.
+gpu = ["canvas", "seiche/gpu"]
 # The graph canvas (`pictograph::canvas`): graph truth presented through
 # seiche physics, the camera, the node-children pool and the scene-paint
 # underlay. Mere's facade exposes it as `mere::canvas`.
