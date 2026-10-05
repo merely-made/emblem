@@ -24,6 +24,9 @@ canvas = [
     "signals",
     "dep:armillary",
     "dep:cartography",
+    # Permitted actions are chirograph's `AdvertisedAction`s (stack seams S3;
+    # dynamics grammar plan, G9).
+    "dep:chirograph",
     "dep:esp",
     "dep:euclid",
     "dep:forme",
@@ -52,6 +55,7 @@ emblem.workspace = true
 netrender_vello = { workspace = true, optional = true }
 armillary = { workspace = true, optional = true }
 cartography = { workspace = true, optional = true }
+chirograph = { workspace = true, optional = true }
 chartulary = { version = "0.2.1", path = "../../eidetic/chartulary", optional = true }
 esp = { workspace = true, optional = true }
 euclid = { version = "0.22", optional = true }
