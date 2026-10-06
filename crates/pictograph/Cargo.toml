@@ -10,7 +10,9 @@ keywords = ["identicon", "icon", "procedural", "vector", "iconvg"]
 categories = ["graphics", "visualization"]
 
 [features]
-default = []
+default = ["image-decode"]
+# Forwards genet-livery's image decoding (mer3ly Ruling 111); on by default.
+image-decode = ["genet-livery?/image-decode"]
 vello = ["dep:netrender_vello"]
 # Graph-structural signals over the kernel graph (`pictograph::signals`).
 signals = ["dep:kernel", "dep:cartography", "dep:chartulary"]
