@@ -81,7 +81,7 @@ happen by accident.
 
 Lives in the [mere](https://github.com/merely-made/mere) workspace under
 `crates/canvas/`. The plan is
-`design_docs/mere_docs/implementation_strategy/2026-08-28_derived_faces_plan.md`.
+`design_docs/archive_docs/2026-10-06_completed_plans/2026-08-28_derived_faces_plan.md`.
 
 ## License
 
