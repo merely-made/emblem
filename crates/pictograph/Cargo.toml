@@ -49,6 +49,8 @@ canvas = [
     "dep:sceno",
     "dep:scenomise",
     "dep:seiche",
+    # The dynamics spec's wire (dynamics grammar plan, G4a).
+    "seiche/serde",
     "dep:serde",
     "dep:serde_json",
     "dep:tincture",
