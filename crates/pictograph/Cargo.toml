@@ -16,7 +16,7 @@ default = ["image-decode"]
 image-decode = ["genet-livery?/image-decode"]
 vello = ["dep:netrender_vello"]
 # Graph-structural signals over the kernel graph (`pictograph::signals`).
-signals = ["dep:kernel", "dep:cartography", "dep:chartulary"]
+signals = ["dep:kernel", "dep:cartography", "dep:chartulary", "dep:libm"]
 # The canvas's and the board's repulsion staged on the host's GPU
 # (`Canvas::set_physics_device`; physics catalog plan, P5c). Opt-in per consumer.
 gpu = ["canvas", "seiche/gpu"]
@@ -75,6 +75,9 @@ genet-livery = { workspace = true, optional = true }
 genet-scripted-dom = { workspace = true, optional = true }
 kernel = { workspace = true, optional = true }
 layout_dom_api = { workspace = true, optional = true }
+# The spectral producer's start vector (`signals`): the same bits on every
+# target, as scenomise's solvers (ruling S4).
+libm = { workspace = true, optional = true }
 netrender = { workspace = true, optional = true }
 numen = { workspace = true, optional = true }
 paint_list_api = { workspace = true, optional = true }
