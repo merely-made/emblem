@@ -10,7 +10,12 @@ readme = "README.md"
 keywords = ["identicon", "icon", "procedural", "vector", "iconvg"]
 categories = ["graphics", "visualization"]
 
+[[example]]
+name = "backdrop_receipt"
+required-features = ["backdrop-cpu"]
+
 [features]
+backdrop-cpu = ["canvas", "netrender/vello-cpu"]
 default = ["image-decode"]
 # Forwards genet-livery's image decoding (mer3ly Ruling 111); on by default.
 image-decode = ["genet-livery?/image-decode"]
