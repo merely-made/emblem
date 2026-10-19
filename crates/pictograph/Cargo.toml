@@ -77,7 +77,7 @@ armillary = { workspace = true, optional = true }
 cartography = { workspace = true, optional = true }
 chirograph = { workspace = true, optional = true }
 curation = { workspace = true, optional = true }
-chartulary = { version = "0.2.1", path = "../../eidetic/chartulary", optional = true }
+chartulary = { version = "0.2.1", optional = true, git = "https://github.com/merely-made/eidetic.git", rev = "de6b1dce75dd6725d72c79b829e4878c7903a381" }
 esp = { workspace = true, optional = true }
 euclid = { version = "0.22", optional = true }
 forme = { workspace = true, optional = true }
