@@ -14,6 +14,15 @@ categories = ["graphics", "visualization"]
 name = "backdrop_receipt"
 required-features = ["backdrop-cpu"]
 
+[[example]]
+name = "occurrence_replay"
+required-features = ["canvas"]
+
+[[example]]
+name = "occurrence_replay_wasm"
+crate-type = ["cdylib"]
+required-features = ["canvas"]
+
 [features]
 backdrop-cpu = ["canvas", "netrender/vello-cpu"]
 default = ["image-decode"]
@@ -105,6 +114,11 @@ tracing = { workspace = true, optional = true }
 uuid = { version = "1", optional = true }
 
 [dev-dependencies]
+state-witness = { path = "../../system/state-witness" }
+serde = { version = "1", features = ["derive"] }
 kernel = { workspace = true, features = ["fixtures"] }
 netrender_vello = { workspace = true, features = ["wgpu"] }
 netrender_device = "=0.1.2"
+
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dev-dependencies]
+wasm-bindgen = "=0.2.129"
