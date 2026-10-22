@@ -23,6 +23,15 @@ name = "occurrence_replay_wasm"
 crate-type = ["cdylib"]
 required-features = ["canvas"]
 
+[[example]]
+name = "grouped_replay"
+required-features = ["canvas"]
+
+[[example]]
+name = "grouped_replay_wasm"
+crate-type = ["cdylib"]
+required-features = ["canvas"]
+
 [features]
 backdrop-cpu = ["canvas", "netrender/vello-cpu"]
 default = ["image-decode"]
