@@ -69,6 +69,8 @@ canvas = [
     "dep:layout_dom_api",
     "dep:netrender",
     "dep:numen",
+    # The saved scene's shapes and the cartography geometry (pandect).
+    "dep:pandect",
     "dep:paint_list_api",
     "dep:paint_list_render",
     "dep:petgraph",
@@ -108,6 +110,7 @@ layout_dom_api = { workspace = true, optional = true }
 libm = { workspace = true, optional = true }
 netrender = { workspace = true, optional = true }
 numen = { workspace = true, optional = true }
+pandect = { workspace = true, optional = true }
 paint_list_api = { workspace = true, optional = true }
 paint_list_render = { workspace = true, optional = true }
 petgraph = { version = "0.8.3", optional = true }
