@@ -1,11 +1,11 @@
 # Encoder Plan
 
 **Date:** 2026-08-28
-**Status:** **E1-E4 all landed** (E1-E2 on 2026-08-28, E3-E4 on 2026-08-29). The encoder is feature-complete; what remains is the 0.2.0 publish. E5 stays unopened.
+**Status:** **E1-E4 all landed** (E1-E2 on 2026-08-28, E3-E4 on 2026-08-29). Shipped as `emblem` 0.2.0 on 2026-08-29 (`71fb778`), the first MPL-2.0 release; 0.1.0 is yanked. E5 stays unopened. Archived 2026-10-31.
 **Scope:** add an encode side to `emblem`, making it a complete IconVG
 implementation: declarative input in, deterministic `.ivg` bytes out. The
 motivating consumer is mere's derived node faces
-(`repos/mere/design_docs/mere_docs/implementation_strategy/2026-08-28_derived_faces_plan.md`),
+(`repos/mere/design_docs/archive_docs/2026-10-06_completed_plans/2026-08-28_derived_faces_plan.md`),
 which also fixes the two format features the encoder must not lose: the
 decoder-input palette and level-of-detail branching.
 
@@ -50,7 +50,7 @@ IconVG?"). The answer: not yet, and when yes, deliberately.
   conformance suite, and the format author's Go encoder as a differential
   oracle, both work only while we match the spec.
 - **Two escape valves cover foreseeable superset wants without forking.**
-  Unknown metadata MIDs are skipped by conforming decoders (`src/meta.rs:102`,
+  Unknown metadata MIDs are skipped by conforming decoders (`src/meta.rs:104`,
   tested), so a private chunk — e.g. derivation provenance: generator version
   and seed — rides inside a file every conforming decoder still draws. And
   the declarative middle is where design sovereignty actually lives: the wire
@@ -199,7 +199,7 @@ spec moves, re-pinning is its own dated decision, not a side effect.
 - 2026-08-28: no Rust encoder exists for IconVG or TinyVG (both crates
   decode-only, verified on crates.io); the only IconVG encoder anywhere is the
   format author's Go implementation.
-- 2026-08-28: unknown metadata MIDs are skipped, not refused (`src/meta.rs:102`,
+- 2026-08-28: unknown metadata MIDs are skipped, not refused (`src/meta.rs:104`,
   test `an_unknown_mid_is_skipped_rather_than_refused`), and chunks must be in
   increasing MID order without repeats. Consequence: private metadata is a
   *conforming* extension path, so most superset wants need no fork; also any
@@ -211,6 +211,12 @@ spec moves, re-pinning is its own dated decision, not a side effect.
   first, editing deferred; authoring on the declarative middle; the
   prior-art question assessed — HVIF, COLRv1/CPAL, TinyVG — and recorded
   above).
+- 2026-08-28: E1 and E2 landed (receipts below).
+- 2026-08-29: E3 and E4 landed (receipts below).
+- 2026-08-29: 0.2.0 prepared in `71fb778` (version bump, crate description
+  and README widened to the encoder) and published to crates.io under
+  MPL-2.0. 0.1.0 is yanked, as is 0.0.1; the README records why 0.1.0 was.
+- 2026-10-31: archived. E5 was never opened.
 
 ### E1 receipt (2026-08-28)
 
@@ -368,11 +374,10 @@ emitted. The tests pin both spellings of the trap: an explicit `adjust_sel`,
 and the subtler `fill_flat(0)`, which increments `SEL` as a side effect of
 slot zero and would otherwise slip through unnoticed.
 
-## Remaining before 0.2.0
+## Closed before archive
 
-- bump the version, and widen the crate description and README, which both
-  still say decoder-only;
-- publish, which per the license sweep plan's invariant 8 is also the point at
-  which MPL-2.0 reaches crates.io;
-- decide the disposition of published 0.1.0, whose decode of any palette-using
-  file is wrong (the SEL bug). Yanking is Mark's call.
+The three items once listed as remaining before 0.2.0 are done: the version
+bump and widened description/README (`71fb778`), the publish that carried
+MPL-2.0 to crates.io (per the license sweep plan's invariant 8), and the
+disposition of 0.1.0, whose decode of any palette-using file was wrong (the
+SEL bug): it is yanked.
