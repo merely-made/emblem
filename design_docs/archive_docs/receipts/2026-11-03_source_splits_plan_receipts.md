@@ -17,3 +17,9 @@ Baseline/post `cargo test --locked`: 157 passed test/doctest cases each.
 retains the same state and instruction bodies; geometry's private helpers
 are visible only back to the original VM module. Existing byte-for-byte
 encoding and VM conformance fixtures pass. Dependency graph unchanged.
+
+### License-header follow-through
+
+Retained the original source copyright and MPL notices on all three new
+modules. Function bodies are unchanged; the actual commit hook rechecks
+the ceiling and Clippy. This changes no original-file qualification count.
