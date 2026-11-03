@@ -1,0 +1,14 @@
+# mere/design_docs/mere_docs/implementation_strategy/2026-10-30_house_style_plan.md (H2); all physical source lines count.
+ceiling = 600
+
+[[exception]]
+path = "src/encode/style.rs"
+reason = "Writing register and fill ops. Existing source-size debt; a responsibility split must preserve StyleWriter and existing module visibility."
+
+[[exception]]
+path = "src/encode/writer.rs"
+reason = "Geometry ops and whole-file assembly. Existing source-size debt; a responsibility split must preserve Point, QuadSegment, CubeSegment and existing module visibility."
+
+[[exception]]
+path = "src/vm.rs"
+reason = "The IconVG bytecode virtual machine. Existing source-size debt; a responsibility split must preserve Host, Vm and existing module visibility."
