@@ -84,6 +84,7 @@ canvas = [
     "dep:paint_list_render",
     "dep:petgraph",
     "dep:sceno",
+    "dep:sceno-backdrops",
     "dep:scenomise",
     "dep:scenograph",
     # The arrangement transitions `canvas::physics_controls` schedules
@@ -124,6 +125,7 @@ paint_list_api = { workspace = true, optional = true }
 paint_list_render = { workspace = true, optional = true }
 petgraph = { version = "0.8.3", optional = true }
 sceno = { workspace = true, optional = true }
+sceno-backdrops = { workspace = true, optional = true }
 scenomise = { workspace = true, optional = true }
 scenograph = { workspace = true, optional = true }
 scenotime = { workspace = true, optional = true }
