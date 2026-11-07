@@ -137,7 +137,7 @@ tracing = { workspace = true, optional = true }
 uuid = { version = "1", optional = true }
 
 [dev-dependencies]
-state-witness = { path = "../../system/state-witness" }
+state-witness = { git = "https://github.com/merely-made/eidetic.git", branch = "main" }
 serde = { version = "1", features = ["derive"] }
 kernel = { workspace = true, features = ["fixtures"] }
 netrender_vello = { workspace = true, features = ["wgpu"] }
