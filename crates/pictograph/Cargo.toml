@@ -16,34 +16,41 @@ required-features = ["backdrop-cpu"]
 
 [[example]]
 name = "occurrence_replay"
-required-features = ["canvas"]
+required-features = ["canvas", "physics-engine"]
 
 [[example]]
 name = "occurrence_replay_wasm"
 crate-type = ["cdylib"]
-required-features = ["canvas"]
+required-features = ["canvas", "physics-engine"]
 
 [[example]]
 name = "grouped_replay"
-required-features = ["canvas"]
+required-features = ["canvas", "physics-engine"]
 
 [[example]]
 name = "grouped_replay_wasm"
 crate-type = ["cdylib"]
-required-features = ["canvas"]
+required-features = ["canvas", "physics-engine"]
 
 [[example]]
 name = "schedule_replay"
-required-features = ["canvas"]
+required-features = ["canvas", "physics-engine"]
 
 [[example]]
 name = "schedule_replay_wasm"
 crate-type = ["cdylib"]
-required-features = ["canvas"]
+required-features = ["canvas", "physics-engine"]
 
 [features]
 backdrop-cpu = ["canvas", "netrender/vello-cpu"]
-default = ["image-decode"]
+default = ["image-decode", "physics-engine"]
+# The force engine in this crate's process: `Simulation`, rapier, the settle
+# drivers and the inline and actor `Physics` backends (seiche `actor`, which
+# implies seiche `engine`). Off, the canvas keeps the force structs, `Declared`,
+# the dynamics spec and the catalog builders (seiche compiled without
+# `engine`) and its physics is `Physics::Remote`: a Worker holds the engine
+# (Graphshell host plan, T7). Consumers that hard-wire `canvas` forward this.
+physics-engine = ["seiche?/actor"]
 # Forwards genet-livery's image decoding (mer3ly Ruling 111); on by default.
 image-decode = ["genet-livery?/image-decode"]
 vello = ["dep:netrender_vello"]
@@ -51,7 +58,7 @@ vello = ["dep:netrender_vello"]
 signals = ["dep:kernel", "dep:cartography", "dep:chartulary", "dep:libm"]
 # The canvas's and the board's repulsion staged on the host's GPU
 # (`Canvas::set_physics_device`; physics catalog plan, P5c). Opt-in per consumer.
-gpu = ["canvas", "seiche/gpu"]
+gpu = ["canvas", "physics-engine", "seiche/gpu"]
 # The Meaning channel's sentence model on the host's own device
 # (`canvas::meaning_device`; dynamics grammar plan, G2, "Burn on the host
 # device, off-path"). Native hosts only: the wasm web build leaves it off and
