@@ -71,7 +71,6 @@ canvas = [
     "dep:incipit",
     "dep:esp",
     "dep:euclid",
-    "dep:forme",
     "dep:genet-livery",
     "dep:genet-scripted-dom",
     "dep:kernel",
@@ -106,11 +105,10 @@ netrender_vello = { workspace = true, optional = true }
 armillary = { workspace = true, optional = true }
 cartography = { workspace = true, optional = true }
 chirograph = { workspace = true, optional = true }
-incipit = { workspace = true, optional = true }
+incipit = { workspace = true, optional = true, features = ["arrangement"] }
 chartulary = { workspace = true, optional = true }
 esp = { workspace = true, optional = true }
 euclid = { version = "0.22", optional = true }
-forme = { workspace = true, optional = true }
 genet-livery = { workspace = true, optional = true }
 genet-scripted-dom = { workspace = true, optional = true }
 kernel = { workspace = true, optional = true }
