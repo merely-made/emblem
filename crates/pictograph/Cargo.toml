@@ -68,7 +68,7 @@ canvas = [
     # dynamics grammar plan, G9).
     "dep:chirograph",
     # The native fold record (mer3ly site plan, Rulings 153 and 163).
-    "dep:curation",
+    "dep:incipit",
     "dep:esp",
     "dep:euclid",
     "dep:forme",
@@ -106,7 +106,7 @@ netrender_vello = { workspace = true, optional = true }
 armillary = { workspace = true, optional = true }
 cartography = { workspace = true, optional = true }
 chirograph = { workspace = true, optional = true }
-curation = { workspace = true, optional = true }
+incipit = { workspace = true, optional = true }
 chartulary = { workspace = true, optional = true }
 esp = { workspace = true, optional = true }
 euclid = { version = "0.22", optional = true }
