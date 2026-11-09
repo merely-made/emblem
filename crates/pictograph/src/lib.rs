@@ -29,10 +29,12 @@
 //! register ops in the file at all. A literal colour anywhere here would be a
 //! bug, not a shortcut.
 //!
-//! **Scale-aware.** Each face carries two arms behind a level-of-detail
-//! branch: a coarse 3x3 silhouette when drawn small, the full 5x5 figure when
-//! drawn large. At Canvas's normal 25.92px face height, every coarse cell is
-//! 8.1px wide. The decoder picks; the caller does nothing.
+//! **Scale-aware.** Each face carries three abutting arms behind
+//! level-of-detail branches: below [`TEXT_THRESHOLD`] a single mark for text,
+//! tabs and rows (see `text_arm`); up to [`LOD_THRESHOLD`] a coarse 3x3
+//! silhouette; above it the full 5x5 figure. At Canvas's normal 25.92px face
+//! height, every coarse cell is 8.1px wide. The decoder picks by height; the
+//! caller does nothing.
 //!
 //! # What names a face
 //!
@@ -84,6 +86,7 @@ pub mod canvas;
 pub mod signals;
 
 mod grammar;
+mod text_arm;
 
 pub use grammar::{CELLS5, FaceKey, Grammar, KeyDomain, derive_in, params_in};
 
@@ -116,6 +119,11 @@ const SMALL_CELL: i32 = 20;
 /// these particular numbers — keeps every coordinate an integer in
 /// `[-30, 30]`, so all of them encode in one byte.
 const ORIGIN: i32 = -30;
+
+/// The rasterization height at which the coarse arm takes over from the text
+/// arm. Fourteen keeps every coarse cell at 4.4 px or more, and is a one-byte
+/// coordinate.
+pub const TEXT_THRESHOLD: f32 = 14.0;
 
 /// The rasterization height at which the detailed arm takes over.
 pub const LOD_THRESHOLD: f32 = 32.0;
@@ -304,11 +312,19 @@ fn params_from_seed(seed: u64) -> Params {
 ///
 /// The same address always yields the same bytes. See the module docs for what
 /// that buys and what it costs.
+///
+/// # Errors
+///
+/// Whatever the encoder refuses; every [`CELLS5`] face encodes.
 pub fn derive(address: &[u8]) -> Result<Vec<u8>, EncodeError> {
     encode(&params_of(address))
 }
 
 /// Encode a face from parameters, for callers holding them already.
+///
+/// # Errors
+///
+/// Whatever the encoder refuses; every [`CELLS5`] face encodes.
 pub fn encode(params: &Params) -> Result<Vec<u8>, EncodeError> {
     let mut w = Writer::new(ViewBox::default());
 
@@ -317,8 +333,10 @@ pub fn encode(params: &Params) -> Result<Vec<u8>, EncodeError> {
     // units wide (8.1px at Canvas's regular 25.92px face height). The old
     // bounding rectangle was bold but lost almost every address-specific
     // distinction at that size.
+    w.level_of_detail(0.0, TEXT_THRESHOLD, |arm| text_arm::draw(arm, params))?;
+
     let small = small_cells(params);
-    w.level_of_detail(0.0, LOD_THRESHOLD, |arm| {
+    w.level_of_detail(TEXT_THRESHOLD, LOD_THRESHOLD, |arm| {
         for (row, cells) in small.iter().enumerate() {
             for (col, filled) in cells.iter().enumerate() {
                 if !filled {

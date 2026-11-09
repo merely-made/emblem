@@ -105,18 +105,23 @@ fn digest(bytes: &[u8]) -> u64 {
 /// The digest-pinned fixtures: committed values pinning the derivation.
 ///
 /// These literals are the point. A test that recomputed both sides would
-/// pass no matter how the grammar changed, which is no test at all. When
-/// this fails, the mapping has moved and **every peer's faces have
-/// changed** — so the response is to bump [`DERIVATION_VERSION`]
-/// deliberately and then update these, never to quietly update these.
+/// pass no matter how the grammar changed, which is no test at all. When the
+/// filled-cell counts fail, the parameter mapping has moved and **every
+/// peer's faces have changed**: bump [`DERIVATION_VERSION`] deliberately. When
+/// only lengths and digests fail, the drawing moved: bump
+/// [`CELLS5`]'s drawing version, which this test pins, and then update these.
+/// Never quietly update these.
 #[test]
 fn the_derivation_matches_its_digest_pinned_fixtures() {
+    // Drawing version 2 added the text arm; the filled-cell counts, which
+    // are parameters, did not move from version 1.
+    assert_eq!(CELLS5.drawing_version, 2, "these goldens are for drawing 2");
     // (address, byte length, digest, filled cells)
     const GOLDEN: [(&[u8], usize, u64, usize); 4] = [
-        (b"", 83, 0x9B94_E95C_C9B2_B632, 6),
-        (b"a", 195, 0xEA2E_8F42_9779_FD95, 13),
-        (b"pictograph", 186, 0x81B8_7D5C_1E2D_21B1, 13),
-        (b"\x00\x01\x02\x03", 131, 0xB15F_8757_0B5F_5CCD, 9),
+        (b"", 132, 0x4396_079C_AC95_A82F, 6),
+        (b"a", 217, 0x625E_D15C_0D3B_F763, 13),
+        (b"pictograph", 208, 0x4CC4_995D_B52E_2D87, 13),
+        (b"\x00\x01\x02\x03", 153, 0x13A9_2632_7821_1155, 9),
     ];
     for (address, len, want, filled) in GOLDEN {
         let face = derive(address).unwrap();
@@ -255,7 +260,7 @@ fn every_fill_resolves_to_a_palette_entry_never_a_literal() {
 
     for address in addresses() {
         let face = derive(&address).unwrap();
-        for height in [8.0, 64.0] {
+        for height in [8.0, 20.0, 64.0] {
             for color in fills(&run(&face, &palette, height)) {
                 assert!(
                     markers.contains(&color),
@@ -274,7 +279,7 @@ fn each_face_draws_a_simpler_arm_when_small() {
     let mut simpler = 0;
     for address in addresses() {
         let face = derive(&address).unwrap();
-        let small = run(&face, &Palette::default(), 8.0);
+        let small = run(&face, &Palette::default(), 20.0);
         let large = run(&face, &Palette::default(), 128.0);
 
         // The small arm combines its coarse cells into one flat fill.
@@ -292,6 +297,103 @@ fn each_face_draws_a_simpler_arm_when_small() {
         "only {simpler} of {} faces simplified when small",
         addresses().len(),
     );
+}
+
+/// Which arm draws at each height: the call sequence at a height inside each
+/// range is that arm's reference, and every other height must match exactly
+/// one of them. An overlap would draw two arms' calls; a gap would draw none.
+#[test]
+fn exactly_one_arm_draws_at_every_height() {
+    for address in [b"".as_slice(), b"a", b"pictograph", b"threshold"] {
+        let face = derive(address).unwrap();
+        let text = run(&face, &Palette::default(), 7.0);
+        let coarse = run(&face, &Palette::default(), 20.0);
+        let detailed = run(&face, &Palette::default(), 100.0);
+        assert!(text != coarse && coarse != detailed && text != detailed);
+        for step in 0..=400 {
+            let height = step as f32 / 2.0;
+            let want = if height < TEXT_THRESHOLD {
+                &text
+            } else if height < LOD_THRESHOLD {
+                &coarse
+            } else {
+                &detailed
+            };
+            let got = run(&face, &Palette::default(), height);
+            assert_eq!(&got, want, "{address:?} at height {height}");
+        }
+    }
+}
+
+/// Parameters with a chosen form and symmetry and an arbitrary grid.
+fn text_params(form: Form, symmetry: Symmetry) -> Params {
+    Params {
+        form,
+        symmetry,
+        primary: 0,
+        accent: 1,
+        ..params_of(b"text arm")
+    }
+}
+
+#[test]
+fn the_text_arm_is_a_plate_and_a_figure() {
+    let primary = Rgba::new(0xFF, 0x00, 0x00, 0xFF);
+    let accent = Rgba::new(0x00, 0x00, 0xFF, 0xFF);
+    let palette = palette_of(&[(0, primary), (1, accent)]);
+    for form in [Form::Block, Form::Diamond] {
+        for symmetry in [Symmetry::MirrorX, Symmetry::MirrorBoth, Symmetry::Rotate180] {
+            let face = encode(&text_params(form, symmetry)).unwrap();
+            let calls = run(&face, &palette, 10.0);
+            assert_eq!(
+                fills(&calls),
+                vec![primary, accent],
+                "{form:?} {symmetry:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_form_and_symmetry_draws_a_distinct_text_mark() {
+    let mut seen = Vec::new();
+    for form in [Form::Block, Form::Diamond] {
+        for symmetry in [Symmetry::MirrorX, Symmetry::MirrorBoth, Symmetry::Rotate180] {
+            let face = encode(&text_params(form, symmetry)).unwrap();
+            let paths: Vec<Call> = run(&face, &Palette::default(), 10.0)
+                .into_iter()
+                .filter(|call| !matches!(call, Call::Fill(_)))
+                .collect();
+            assert!(
+                !seen.contains(&paths),
+                "{form:?} {symmetry:?} repeats a mark"
+            );
+            seen.push(paths);
+        }
+    }
+}
+
+#[test]
+fn the_text_arm_reads_only_existing_parameters() {
+    // Two faces whose parameters agree on form, symmetry and colours draw the
+    // same text mark, whatever their grids.
+    let one = Params {
+        form: Form::Block,
+        symmetry: Symmetry::MirrorX,
+        primary: 2,
+        accent: 5,
+        ..params_of(b"one")
+    };
+    let two = Params {
+        form: Form::Block,
+        symmetry: Symmetry::MirrorX,
+        primary: 2,
+        accent: 5,
+        ..params_of(b"two")
+    };
+    assert_ne!(one, two);
+    let at_text = |p: &Params| run(&encode(p).unwrap(), &Palette::default(), 10.0);
+    assert_eq!(at_text(&one), at_text(&two));
 }
 
 #[test]

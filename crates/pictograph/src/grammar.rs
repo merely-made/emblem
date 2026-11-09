@@ -39,7 +39,8 @@ pub struct Grammar {
 pub const CELLS5: Grammar = Grammar {
     id: "cells5",
     seed_version: DERIVATION_VERSION,
-    drawing_version: 1,
+    // 2 (2026-11-09): the text arm below 14 px (iconography T1).
+    drawing_version: 2,
 };
 
 /// What a face's key bytes mean.
