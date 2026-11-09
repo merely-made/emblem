@@ -10,6 +10,10 @@ keywords = ["iconvg", "vector", "graphics", "icons", "encoder"]
 categories = ["encoding", "graphics", "no-std"]
 readme = "README.md"
 
+[features]
+# SVG text output (`emblem::svg`). No dependencies.
+svg = []
+
 [dependencies]
 
 [dev-dependencies]

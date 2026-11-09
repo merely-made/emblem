@@ -106,6 +106,8 @@ pub mod meta;
 pub mod num;
 mod oplen;
 pub mod sink;
+#[cfg(feature = "svg")]
+pub mod svg;
 pub mod vm;
 
 pub use color::{Palette, Registers, Rgba, built_in_palette};
@@ -113,6 +115,8 @@ pub use encode::{EncodeError, Writer};
 pub use meta::{MAGIC, Metadata, ViewBox};
 pub use sink::{Call, GradientKind, Matrix, Paint, Recorder, Sink, Spread, Stop};
 pub use vm::{Host, execute};
+#[cfg(feature = "svg")]
+pub use svg::{IdPrefix, SvgError, SvgOptions, SvgSink, to_svg};
 
 /// The result of reading an IconVG graphic.
 pub type Result<T> = core::result::Result<T, Error>;
