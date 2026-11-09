@@ -131,6 +131,57 @@ fn the_derivation_matches_its_digest_pinned_fixtures() {
 }
 
 #[test]
+fn an_address_face_is_the_same_by_every_route() {
+    for address in addresses() {
+        let face = derive(&address).unwrap();
+        assert_eq!(derive_in(&KeyDomain::Address, &address).unwrap(), face);
+        assert_eq!(FaceKey::address(address.clone()).derive().unwrap(), face);
+        assert_eq!(
+            FaceKey::address(address.clone()).params(),
+            params_of(&address)
+        );
+    }
+}
+
+#[test]
+fn the_same_key_under_two_domains_gives_two_faces() {
+    for address in addresses() {
+        let as_address = derive(&address).unwrap();
+        let in_one = derive_in(&KeyDomain::Context("forum".into()), &address).unwrap();
+        let in_two = derive_in(&KeyDomain::Context("market".into()), &address).unwrap();
+        assert_ne!(in_one, as_address, "{address:?}");
+        assert_ne!(in_one, in_two, "{address:?}");
+    }
+    // The context's length is hashed, so moving bytes across the boundary
+    // between context and key is a different face.
+    let split_one = derive_in(&KeyDomain::Context("ab".into()), b"c").unwrap();
+    let split_two = derive_in(&KeyDomain::Context("a".into()), b"bc").unwrap();
+    assert_ne!(split_one, split_two);
+}
+
+#[test]
+fn a_face_key_names_grammar_versions_and_domain() {
+    let address = FaceKey::address(b"mere://note".to_vec());
+    assert_eq!(address.grammar.id, "cells5");
+    assert_eq!(address.grammar.seed_version, DERIVATION_VERSION);
+    let redrawn = FaceKey {
+        grammar: Grammar {
+            drawing_version: CELLS5.drawing_version + 1,
+            ..CELLS5
+        },
+        ..address.clone()
+    };
+    let elsewhere = FaceKey {
+        domain: KeyDomain::Context("forum".into()),
+        ..address.clone()
+    };
+    assert_ne!(redrawn, address, "a drawing bump misses the cache");
+    assert_ne!(elsewhere, address, "a domain is part of the key");
+    // A drawing version leaves identity alone: the parameters do not move.
+    assert_eq!(redrawn.params(), address.params());
+}
+
+#[test]
 fn the_grammar_does_not_collapse_to_one_variant() {
     // A mapping bug that always picked the same symmetry or form would
     // still pass every other test here while making every face alike.

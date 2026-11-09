@@ -34,14 +34,43 @@
 //! drawn large. At Canvas's normal 25.92px face height, every coarse cell is
 //! 8.1px wide. The decoder picks; the caller does nothing.
 //!
-//! # Versioning
+//! # What names a face
 //!
-//! [`DERIVATION_VERSION`] is mixed into the seed, so bumping it changes every
-//! face everywhere. That is a deliberate, visible act — every node in every
-//! session changes appearance — and never a side effect of tidying this code.
-//! Changing the grammar, the parameter mapping, or the geometry without
-//! bumping it is the actual mistake, because two peers on different versions
-//! would then derive different bytes and silently disagree.
+//! A face is (grammar, versions, key domain, key) — a [`FaceKey`], which is
+//! also the cache key for its bytes. The grammar here is [`CELLS5`].
+//!
+//! **Two versions.** The seed version, [`DERIVATION_VERSION`], is mixed into
+//! the seed, so bumping it changes every face's colours, symmetry and cells.
+//! That is a deliberate, visible act — every node in every session changes
+//! appearance — and never a side effect of tidying this code. The drawing
+//! version, [`Grammar::drawing_version`], covers how the arms draw those
+//! parameters: bumping it changes bytes and cache keys but no face's identity.
+//! Changing the parameter mapping without bumping the seed version, or the
+//! geometry without bumping the drawing version, is the actual mistake,
+//! because two peers would then derive different bytes and silently disagree.
+//!
+//! **Key domains.** [`KeyDomain::Address`] is a canonical node address, and
+//! [`derive`] uses it. [`KeyDomain::Context`] separates keys that must not link
+//! across contexts: the same key bytes under two domains give unrelated faces.
+//!
+//! # What a face is not
+//!
+//! **A face is a linkability handle.** A stable face derived from a key lets
+//! anyone who sees it correlate every appearance of that key. Content,
+//! release and series addresses are public already, so faces from them add
+//! nothing. A persona key is different: an unassociated or anonymous persona
+//! gets no derived face, or one derived under a [`KeyDomain::Context`], so two
+//! contexts do not match; a face is never derived from a publisher key the
+//! publisher has not associated. Each consumer states which key its faces
+//! derive from.
+//!
+//! **A face is a recognition aid, not proof.** The seed is a 64-bit FNV-1a
+//! hash, which is not cryptographic, and the visible distinctions are far
+//! fewer (eight primaries, seven accents, three symmetries, two forms, a
+//! sparse grid), so a look-alike for any face can be ground out in moments. No
+//! surface treats matching faces as evidence of matching identity. Comparing
+//! keys between peers by eye would need its own grammar with a stated bit
+//! budget and fixed contrast.
 
 #![doc(html_no_source)]
 
@@ -54,13 +83,18 @@ pub mod canvas;
 #[cfg(feature = "signals")]
 pub mod signals;
 
+mod grammar;
+
+pub use grammar::{CELLS5, FaceKey, Grammar, KeyDomain, derive_in, params_in};
+
 use emblem::ViewBox;
 use emblem::encode::{EncodeError, Writer};
 
 #[cfg(feature = "vello")]
 pub mod vello;
 
-/// Bumping this changes every derived face. See the module docs.
+/// The [`CELLS5`] seed version. Bumping it changes every derived face. See the
+/// module docs.
 pub const DERIVATION_VERSION: u32 = 3;
 
 /// Cells across and down.
@@ -153,20 +187,6 @@ impl Params {
     }
 }
 
-/// A 64-bit hash of the address, with the derivation version folded in.
-///
-/// FNV-1a: small, exactly specified, and identical on every machine, which is
-/// the whole requirement. It is not, and need not be, cryptographic — the
-/// input is already a content address.
-fn seed_of(address: &[u8]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in address {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash ^ u64::from(DERIVATION_VERSION).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-}
-
 /// SplitMix64: a fixed, well-specified stream from the seed.
 struct Stream(u64);
 
@@ -198,9 +218,14 @@ fn is_independent_cell(symmetry: Symmetry, row: usize, col: usize) -> bool {
     }
 }
 
-/// Resolve a content address to its parameters.
+/// Resolve a canonical address to its parameters.
 pub fn params_of(address: &[u8]) -> Params {
-    let mut stream = Stream(seed_of(address));
+    grammar::params_in(&KeyDomain::Address, address)
+}
+
+/// The parameters a seed resolves to.
+fn params_from_seed(seed: u64) -> Params {
+    let mut stream = Stream(seed);
     let symmetry = match stream.below(3) {
         0 => Symmetry::MirrorX,
         1 => Symmetry::MirrorBoth,
@@ -275,7 +300,7 @@ pub fn params_of(address: &[u8]) -> Params {
     }
 }
 
-/// Derive a face from a content address, as IconVG bytes.
+/// Derive the [`CELLS5`] face of a canonical address, as IconVG bytes.
 ///
 /// The same address always yields the same bytes. See the module docs for what
 /// that buys and what it costs.
