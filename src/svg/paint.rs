@@ -53,6 +53,7 @@ pub(super) fn write(
     id: &str,
     clip: &str,
     gradient: &Gradient<'_>,
+    slots: &[Option<(&str, u8)>],
     points: &[(f32, f32)],
 ) -> Result<bool, SvgError> {
     let clipped = gradient.spread == Spread::None;
@@ -96,7 +97,7 @@ pub(super) fn write(
         Spread::Repeat => "repeat",
     };
     out.push_str(&format!(" spreadMethod=\"{method}\">\n"));
-    stops(&mut out, gradient.stops)?;
+    stops(&mut out, gradient.stops, slots)?;
     out.push_str(close);
     defs.push_str(&out);
     Ok(clipped)
@@ -203,19 +204,27 @@ fn attr(out: &mut String, name: &str, value: f64) -> Result<(), SvgError> {
     Ok(())
 }
 
-fn stops(out: &mut String, stops: &[Stop]) -> Result<(), SvgError> {
+fn stops(out: &mut String, stops: &[Stop], slots: &[Option<(&str, u8)>]) -> Result<(), SvgError> {
+    let slot = |i: usize| slots.get(i).copied().flatten();
     for (i, stop) in stops.iter().enumerate() {
         let (rgb, alpha) = straight(stop.color);
-        write_stop(out, f64::from(stop.offset), rgb, alpha)?;
+        write_stop(out, f64::from(stop.offset), rgb, alpha, slot(i))?;
         let Some(next) = stops.get(i + 1) else { break };
         if next.color.a == stop.color.a {
             continue;
         }
+        // Fading a slot to transparent keeps the slot's hue all the way, so
+        // the intermediate stops wear its variable too.
+        let between = match (stop.color.a, next.color.a) {
+            (_, 0) => slot(i),
+            (0, _) => slot(i + 1),
+            _ => None,
+        };
         let (o0, o1) = (f64::from(stop.offset), f64::from(next.offset));
         for k in 1..=ALPHA_STEPS {
             let t = f64::from(k) / f64::from(ALPHA_STEPS + 1);
             let (rgb, alpha) = mix(stop.color, next.color, t);
-            write_stop(out, o0 + (o1 - o0) * t, rgb, alpha)?;
+            write_stop(out, o0 + (o1 - o0) * t, rgb, alpha, between)?;
         }
     }
     Ok(())
@@ -240,12 +249,17 @@ fn mix(from: Rgba, to: Rgba, t: f64) -> ([u8; 3], u8) {
     )
 }
 
-fn write_stop(out: &mut String, offset: f64, rgb: [u8; 3], alpha: u8) -> Result<(), SvgError> {
+fn write_stop(
+    out: &mut String,
+    offset: f64,
+    rgb: [u8; 3],
+    alpha: u8,
+    slot: Option<(&str, u8)>,
+) -> Result<(), SvgError> {
     out.push_str("<stop offset=\"");
     fmt::number(out, offset, fmt::COORD)?;
-    out.push_str("\" stop-color=\"");
-    fmt::hex(out, rgb);
     out.push('"');
+    super::color_attr(out, "stop-color", rgb, slot);
     super::opacity(out, " stop-opacity", alpha)?;
     out.push_str("/>\n");
     Ok(())

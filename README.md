@@ -39,7 +39,7 @@ to spec commit `1864c0573e6b` (the spec last moved 2026-02-27).
   bytes, on every machine and in every process — which is what lets callers
   content-address the output and lets two peers derive an identical file
   independently.
-- 157 tests. Every worked example in the specification is a test, from both
+- 157 tests (177 with the `svg` feature). Every worked example in the specification is a test, from both
   directions.
 - Hardened by an adversarial test suite: three reachable panics on crafted
   files were found and fixed (2026-08-08).
@@ -82,6 +82,40 @@ Two things worth knowing when encoding:
 - **`SEL` moves under you.** Ops name a slot, not a register, and address
   `REGS[SEL + slot]`; several ops shift `SEL` as a side effect. `Writer`
   tracks it, and `register_index` tells you where a slot currently points.
+
+### SVG output (feature `svg`)
+
+`to_svg` writes a graphic as self-contained SVG text, for pages, docs and
+favicons that should not need script or a rasterizer:
+
+```rust,ignore
+let svg = emblem::to_svg(&bytes, &palette, host, &emblem::SvgOptions::default())?;
+```
+
+- **Deterministic.** The same bytes, palette, host and options give the same
+  text everywhere: fixed-point numbers (four fractional digits for
+  coordinates, six for gradient geometry), ids counted in fill order, fixed
+  element and attribute order. SVG can be content-addressed like the `.ivg`.
+- **Lossless where SVG allows.** One `<path>` per fill, in order, with
+  `fill-rule="nonzero"`; arcs already arrive as cubics.
+- **One level of detail per text.** `host.height` chooses the arm when the
+  text is made.
+- **Themeable inline.** `Theme::CssVars` writes palette-slot colours as
+  `var(--emblem-slot-N,#rrggbb)` in a `style` attribute, with the snapshot
+  colour as the fallback. Variables reach inline SVG only; `<img>` and favicons
+  see the fallback. A strict Content Security Policy blocks inline `style`.
+
+Where the SVG differs from the IconVG it came from:
+
+- **Premultiplied gradients.** IconVG interpolates premultiplied, SVG
+  straight. A span whose stops differ in alpha gets eight intermediate stops,
+  which approximates the IconVG curve.
+- **`Spread::None`** (transparent outside the gradient) is a clip strip or
+  disc with `pad` spread; the clip edge may show a faint seam.
+- **Quantization.** Colours arrive as 8-bit premultiplied values, so a
+  low-alpha colour's straight channels are approximate.
+- **Unthemable alpha.** Opacity is baked from the palette given, and blends
+  of slots stay literal colours.
 
 ## Versions
 

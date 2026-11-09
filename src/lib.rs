@@ -116,7 +116,7 @@ pub use meta::{MAGIC, Metadata, ViewBox};
 pub use sink::{Call, GradientKind, Matrix, Paint, Recorder, Sink, Spread, Stop};
 pub use vm::{Host, execute};
 #[cfg(feature = "svg")]
-pub use svg::{IdPrefix, SvgError, SvgOptions, SvgSink, to_svg};
+pub use svg::{IdPrefix, SvgError, SvgOptions, SvgSink, Theme, to_svg};
 
 /// The result of reading an IconVG graphic.
 pub type Result<T> = core::result::Result<T, Error>;

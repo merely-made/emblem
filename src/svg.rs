@@ -35,6 +35,15 @@
 //! - **Quantized alpha.** Colours arrive as 8-bit premultiplied values, so a
 //!   low-alpha colour's straight channels are approximate.
 //!
+//! **Theming.** [`Theme::CssVars`] writes each colour that came from a palette
+//! slot as `style="fill:var(--{prefix}slot-N,#rrggbb)"` (and `stop-color` the
+//! same way), so a page can re-theme inline SVG with CSS. The fallback is the
+//! colour under the palette given, and is what `<img>` and favicon use, since
+//! variables reach only inline SVG. Slots are found by executing twice (see
+//! the `theme` module); literals and blends stay literal, and opacity is
+//! always baked in from the palette given. An inline `style` attribute fails
+//! under a strict Content Security Policy.
+//!
 //! Only `svg`, `defs`, `path`, `linearGradient`, `radialGradient`, `stop`,
 //! `clipPath`, `rect` and `circle` are emitted. Every value is a formatted
 //! number, a `#rrggbb`, a fixed keyword or an id built from a validated
@@ -43,6 +52,7 @@
 
 mod fmt;
 mod paint;
+mod theme;
 
 use crate::{Host, Paint, Palette, Sink, ViewBox};
 
@@ -122,12 +132,28 @@ impl Default for IdPrefix {
     }
 }
 
+/// How palette colours are written.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Theme {
+    /// Every colour as the palette given resolves it.
+    #[default]
+    Snapshot,
+    /// Colours from palette slots as CSS variables `--{prefix}slot-N`, with the
+    /// snapshot colour as each variable's fallback.
+    CssVars {
+        /// Starts every variable name.
+        prefix: IdPrefix,
+    },
+}
+
 /// How to write the text.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct SvgOptions {
     /// Starts every gradient and clip id: `{prefix}g0`, `{prefix}c0`, ….
     pub id_prefix: IdPrefix,
+    /// Snapshot colours, or CSS variables for palette slots.
+    pub theme: Theme,
 }
 
 /// Decode `file` and write it as SVG text.
@@ -146,7 +172,10 @@ pub fn to_svg(
 ) -> Result<String, SvgError> {
     let (metadata, start) = crate::decode_metadata(file)?;
     let mut sink = SvgSink::new(metadata.view_box, options);
-    crate::execute(file, start, palette, host, &mut sink)?;
+    match options.theme {
+        Theme::Snapshot => crate::execute(file, start, palette, host, &mut sink)?,
+        Theme::CssVars { .. } => theme::execute(file, start, palette, host, &mut sink)?,
+    }
     sink.finish()
 }
 
@@ -155,6 +184,8 @@ pub fn to_svg(
 pub struct SvgSink {
     view_box: ViewBox,
     prefix: IdPrefix,
+    /// The variable prefix under [`Theme::CssVars`].
+    vars: Option<IdPrefix>,
     defs: String,
     body: String,
     path: String,
@@ -172,6 +203,10 @@ impl SvgSink {
         Self {
             view_box,
             prefix: options.id_prefix.clone(),
+            vars: match &options.theme {
+                Theme::Snapshot => None,
+                Theme::CssVars { prefix } => Some(prefix.clone()),
+            },
             defs: String::new(),
             body: String::new(),
             path: String::new(),
@@ -245,14 +280,23 @@ impl SvgSink {
         }
     }
 
-    fn write_fill(&mut self, paint: &Paint) -> Result<(), SvgError> {
+    /// Fill, knowing which colours are palette slots: one entry for a flat
+    /// paint, one per stop for a gradient. Missing entries are literal.
+    fn fill_slotted(&mut self, paint: &Paint, slots: &[Option<u8>]) {
+        if self.error.is_none() {
+            let result = self.write_fill(paint, slots);
+            self.note(result);
+        }
+        self.path.clear();
+        self.points.clear();
+    }
+
+    fn write_fill(&mut self, paint: &Paint, slots: &[Option<u8>]) -> Result<(), SvgError> {
         let mut attrs = String::new();
         match paint {
             Paint::Flat(color) => {
-                attrs.push_str(" fill=\"");
                 let (rgb, alpha) = paint::straight(*color);
-                fmt::hex(&mut attrs, rgb);
-                attrs.push('"');
+                color_attr(&mut attrs, "fill", rgb, slot(self.vars.as_ref(), slots, 0));
                 opacity(&mut attrs, " fill-opacity", alpha)?;
                 attrs.push_str(r#" fill-rule="nonzero""#);
             },
@@ -270,7 +314,11 @@ impl SvgSink {
                     stops,
                     matrix: *matrix,
                 };
-                let clipped = paint::write(&mut self.defs, &id, &clip, &gradient, &self.points)?;
+                let themed: Vec<_> = (0..stops.len())
+                    .map(|i| slot(self.vars.as_ref(), slots, i))
+                    .collect();
+                let clipped =
+                    paint::write(&mut self.defs, &id, &clip, &gradient, &themed, &self.points)?;
                 self.gradients += 1;
                 attrs.push_str(&format!(r#" fill="url(#{id})" fill-rule="nonzero""#));
                 if clipped {
@@ -286,6 +334,22 @@ impl SvgSink {
         self.body.push_str("/>\n");
         Ok(())
     }
+}
+
+/// The variable prefix and slot for colour `i`, when it is themed.
+fn slot<'a>(vars: Option<&'a IdPrefix>, slots: &[Option<u8>], i: usize) -> Option<(&'a str, u8)> {
+    Some((vars?.as_str(), slots.get(i).copied().flatten()?))
+}
+
+/// Write a colour as `name="#rrggbb"`, or for a themed slot as
+/// `style="name:var(--{prefix}slot-N,#rrggbb)"`.
+fn color_attr(out: &mut String, name: &str, rgb: [u8; 3], slot: Option<(&str, u8)>) {
+    match slot {
+        None => out.push_str(&format!(" {name}=\"")),
+        Some((prefix, n)) => out.push_str(&format!(" style=\"{name}:var(--{prefix}slot-{n},")),
+    }
+    fmt::hex(out, rgb);
+    out.push_str(if slot.is_some() { ")\"" } else { "\"" });
 }
 
 /// Write `name="alpha/255"` unless the colour is opaque.
@@ -317,11 +381,6 @@ impl Sink for SvgSink {
         self.segment('Z', &[]);
     }
     fn fill(&mut self, paint: &Paint) {
-        if self.error.is_none() {
-            let result = self.write_fill(paint);
-            self.note(result);
-        }
-        self.path.clear();
-        self.points.clear();
+        self.fill_slotted(paint, &[]);
     }
 }
