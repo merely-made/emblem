@@ -85,6 +85,8 @@ pub mod canvas;
 #[cfg(feature = "signals")]
 pub mod signals;
 
+pub mod blazon;
+
 mod grammar;
 mod text_arm;
 
