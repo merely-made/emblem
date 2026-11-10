@@ -88,6 +88,12 @@ pub mod signals;
 pub mod blazon;
 pub mod symbols;
 
+#[cfg(feature = "pack")]
+pub mod icon_pack;
+
+#[cfg(any(feature = "canvas", feature = "pack"))]
+mod flat_icon;
+
 mod grammar;
 mod text_arm;
 

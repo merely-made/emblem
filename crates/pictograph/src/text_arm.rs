@@ -33,7 +33,7 @@ const CORNER: f32 = 10.0;
 /// Draw the text arm's plate and figure into `arm`.
 pub(crate) fn draw(arm: &mut Writer, params: &Params) -> Result<(), EncodeError> {
     match params.form {
-        Form::Block => rounded_square(arm)?,
+        Form::Block => rounded_square(arm, EDGE, CORNER)?,
         Form::Diamond => {
             arm.move_to(0.0, -EDGE)?;
             // A - B + C lands on (-EDGE, 0), the diamond's fourth point.
@@ -62,10 +62,10 @@ pub(crate) fn draw(arm: &mut Writer, params: &Params) -> Result<(), EncodeError>
     arm.fill_flat(slot_for(params.accent))
 }
 
-/// A square of half-width [`EDGE`] whose corners are quadratic curves with
+/// A rounded square whose corners are quadratic curves with
 /// the corner itself as control point.
-fn rounded_square(arm: &mut Writer) -> Result<(), EncodeError> {
-    let (e, r) = (EDGE, EDGE - CORNER);
+pub(crate) fn rounded_square(arm: &mut Writer, edge: f32, corner: f32) -> Result<(), EncodeError> {
+    let (e, r) = (edge, edge - corner);
     arm.move_to(-r, -e)?;
     arm.line_to(&[(r, -e)])?;
     arm.quad_to(&[((e, -e), (e, -r))])?;

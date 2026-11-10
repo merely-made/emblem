@@ -46,6 +46,25 @@ let face = pictograph::derive(b"some content address").unwrap();
 the two palette entries, the filled cells — for callers that want to explain a
 face rather than only draw one.
 
+## Package an app icon
+
+The optional `pack` binary renders authored app icons with Vello CPU.
+Run it from the Mere checkout with the guarded workspace launcher:
+
+```sh
+PATH="$HOME/.cargo/bin:$PATH" python3 /Users/markik/Code/tools/build_storage.py build \
+  --lane pictograph-grammar --cwd "$PWD" -- \
+  +1.99.1 run --locked --offline -p pictograph --no-default-features \
+  --features pack --bin pack -- hocket /Users/markik/Code/output/pictograph-grammar
+```
+
+The first argument is the app ID. The tool currently accepts `hocket`. The
+second argument is the output root. Under `icons/hocket/` the tool writes
+PNG files at 16, 24, 32, 48, 64, 128, 256, 512 and 1024 pixels, plus
+`icon.icns`, `icon.ico` and `manifest.json`. The manifest records the
+IconVG source digest, straight-alpha RGBA palette and container sizes.
+Use a fresh output root for a repeat run to preserve existing evidence.
+
 ## Vello bridge
 
 Enable the `vello` feature to decode any emblem-supported IconVG file into the

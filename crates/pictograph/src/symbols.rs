@@ -23,7 +23,7 @@ pub const SURFACE_ENTRY: usize = INK_ENTRY + 2;
 pub const HOST_SEAL_ENTRY: usize = INK_ENTRY + 3;
 
 // Advance past the face entries once so slots 8–11 address entries 8–11.
-const CHROME_SELECTOR_DELTA: u8 = PALETTE_SPAN;
+pub(crate) const CHROME_SELECTOR_DELTA: u8 = PALETTE_SPAN;
 const INK_SLOT: u8 = FIRST_PALETTE_SLOT;
 
 /// Extend the eight face entries with four named host colors.
@@ -123,7 +123,7 @@ fn polygon(arm: &mut Writer, first: (f32, f32), rest: &[(f32, f32)]) -> Result<(
     arm.line_to(rest)
 }
 
-fn disk(arm: &mut Writer, x: f32, y: f32, radius: f32, reverse: bool) -> Result<(), EncodeError> {
+pub(crate) fn disk(arm: &mut Writer, x: f32, y: f32, radius: f32, reverse: bool) -> Result<(), EncodeError> {
     let vertical = if reverse { -radius } else { radius };
     arm.move_to(x + radius, y)?;
     arm.ellipse(4, (x, y + vertical), (x - radius, y))
