@@ -86,13 +86,14 @@ pub mod canvas;
 pub mod signals;
 
 pub mod blazon;
+pub mod symbols;
 
 mod grammar;
 mod text_arm;
 
 pub use grammar::{CELLS5, FaceKey, Grammar, KeyDomain, derive_in, params_in};
 
-use emblem::ViewBox;
+use emblem::{Palette, Rgba, ViewBox};
 use emblem::encode::{EncodeError, Writer};
 
 #[cfg(feature = "vello")]
@@ -393,6 +394,16 @@ pub fn encode(params: &Params) -> Result<Vec<u8>, EncodeError> {
 /// naming a palette entry, with no register op in the file.
 fn slot_for(entry: u8) -> u8 {
     FIRST_PALETTE_SLOT + (entry % PALETTE_SPAN)
+}
+
+/// Lower the caller's straight-alpha colors to IconVG's premultiplied palette.
+fn palette_from_rgba<const N: usize>(entries: [[u8; 4]; N]) -> Palette {
+    let mut palette = Palette::default();
+    for (target, [r, g, b, a]) in palette.0[..N].iter_mut().zip(entries) {
+        let premultiply = |channel: u8| ((u32::from(channel) * u32::from(a) + 127) / 255) as u8;
+        *target = Rgba::new(premultiply(r), premultiply(g), premultiply(b), a);
+    }
+    palette
 }
 
 /// Reduce the detailed 5x5 grid to its small-arm 3x3 silhouette.
