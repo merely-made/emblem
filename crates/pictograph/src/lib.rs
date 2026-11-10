@@ -85,6 +85,7 @@ pub mod canvas;
 #[cfg(feature = "signals")]
 pub mod signals;
 
+pub mod backdrop;
 pub mod blazon;
 pub mod symbols;
 

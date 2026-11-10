@@ -112,7 +112,7 @@ pub fn derive_in(domain: &KeyDomain, key: &[u8]) -> Result<Vec<u8>, EncodeError>
 }
 
 /// FNV-1a 64 over `bytes`, from the standard offset basis.
-fn fnv1a(bytes: impl IntoIterator<Item = u8>) -> u64 {
+pub(crate) fn fnv1a(bytes: impl IntoIterator<Item = u8>) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in bytes {
         hash ^= u64::from(byte);
