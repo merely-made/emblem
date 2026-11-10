@@ -6,6 +6,15 @@
 
 //! Authored chrome symbols. Both sizes use the host's ink palette entry.
 
+#[cfg(feature = "canvas")]
+mod image;
+mod svg;
+
+#[cfg(feature = "canvas")]
+pub use image::SymbolImage;
+
+use std::sync::OnceLock;
+
 use emblem::encode::{EncodeError, Writer};
 use emblem::{Palette, ViewBox};
 
@@ -102,6 +111,13 @@ impl Symbol {
         writer.finish()
     }
 
+    fn encoded(self) -> &'static [u8] {
+        static BYTES: OnceLock<[Vec<u8>; Symbol::ALL.len()]> = OnceLock::new();
+        &BYTES.get_or_init(|| {
+            Self::ALL.map(|symbol| symbol.encode().expect("authored symbol encodes"))
+        })[self as usize]
+    }
+
     fn draw(self, arm: &mut Writer, full: bool) -> Result<(), EncodeError> {
         let weight = if full { 5 } else { 7 };
         match self {
@@ -123,7 +139,13 @@ fn polygon(arm: &mut Writer, first: (f32, f32), rest: &[(f32, f32)]) -> Result<(
     arm.line_to(rest)
 }
 
-pub(crate) fn disk(arm: &mut Writer, x: f32, y: f32, radius: f32, reverse: bool) -> Result<(), EncodeError> {
+pub(crate) fn disk(
+    arm: &mut Writer,
+    x: f32,
+    y: f32,
+    radius: f32,
+    reverse: bool,
+) -> Result<(), EncodeError> {
     let vertical = if reverse { -radius } else { radius };
     arm.move_to(x + radius, y)?;
     arm.ellipse(4, (x, y + vertical), (x - radius, y))
