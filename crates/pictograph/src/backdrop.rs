@@ -23,7 +23,10 @@ pub const WASH: crate::Grammar = crate::Grammar {
 /// and transparent at 8. The host supplies the actual colors.
 pub const PALETTE_ENTRIES: usize = 9;
 
-pub(crate) const OTHER: u8 = 5;
+/// The palette entry for merged clusters.
+pub const OTHER: u8 = 5;
 const ACTIVITY: u8 = 6;
-pub(crate) const MOTIF: u8 = 7;
-pub(crate) const CLEAR: u8 = 8;
+/// The palette entry for the motif.
+pub const MOTIF: u8 = 7;
+/// The transparent palette entry.
+pub const CLEAR: u8 = 8;

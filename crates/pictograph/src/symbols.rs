@@ -6,11 +6,11 @@
 
 //! Authored chrome symbols. Both sizes use the host's ink palette entry.
 
-#[cfg(feature = "canvas")]
+#[cfg(feature = "livery")]
 mod image;
 mod svg;
 
-#[cfg(feature = "canvas")]
+#[cfg(feature = "livery")]
 pub use image::SymbolImage;
 
 use std::sync::OnceLock;

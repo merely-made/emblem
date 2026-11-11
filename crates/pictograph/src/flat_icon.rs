@@ -6,7 +6,7 @@
 
 //! IconVG lowered to portable paint-list primitives for Canvas and icon packaging.
 //!
-//! Canvas returns a netrender [`Scene`](netrender::Scene), so it cannot append the raw vello
+//! Canvas returns a netrender `Scene`, so it cannot append the raw vello
 //! fragment exposed by pictograph's optional D2 bridge. The paint list already carries arbitrary
 //! paths and netrender fills them with non-zero winding. This small sink keeps Canvas device-free
 //! while preserving IconVG's fill rule at the renderer boundary.
@@ -15,15 +15,19 @@ use emblem::{Host, Paint, Palette, Rgba, Sink};
 use paint_list_api::{
     ColorF, CommonPlacement, LayoutPoint, LayoutRect, PaintCmd, PathCommand, PathData, PathItem,
 };
-#[cfg(feature = "canvas")]
+#[cfg(feature = "wash")]
 mod wash;
-#[cfg(feature = "canvas")]
-pub(crate) use wash::wash_commands;
+#[cfg(feature = "wash")]
+pub use wash::wash_commands;
 
+/// Why an IconVG file could not be lowered to paint commands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Error {
+pub enum Error {
+    /// The file failed to decode.
     Iconvg(emblem::Error),
+    /// The file's view box has no area.
     EmptyViewBox,
+    /// A gradient this sink cannot express.
     UnsupportedGradient,
 }
 
@@ -50,7 +54,12 @@ impl From<emblem::Error> for Error {
 }
 
 /// Decode one generated face into screen-space paint commands bounded by `target`.
-pub(crate) fn commands(
+///
+/// # Errors
+///
+/// Returns [`Error`] when the file does not decode, its view box is empty, or
+/// it carries a gradient.
+pub fn commands(
     file: &[u8],
     palette: &Palette,
     host_height: f32,
@@ -98,7 +107,7 @@ struct PaintListSink {
     offset_x: f32,
     offset_y: f32,
     unsupported_gradient: bool,
-    #[cfg(feature = "canvas")]
+    #[cfg(feature = "wash")]
     allow_wash_gradients: bool,
 }
 
@@ -112,7 +121,7 @@ impl PaintListSink {
             offset_x,
             offset_y,
             unsupported_gradient: false,
-            #[cfg(feature = "canvas")]
+            #[cfg(feature = "wash")]
             allow_wash_gradients: false,
         }
     }
@@ -167,7 +176,7 @@ impl Sink for PaintListSink {
             return;
         }
         let Paint::Flat(color) = paint else {
-            #[cfg(feature = "canvas")]
+            #[cfg(feature = "wash")]
             if self.allow_wash_gradients
                 && let Some(command) = wash::radial_command(paint, &path)
             {

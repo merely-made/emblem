@@ -76,15 +76,6 @@
 
 #![doc(html_no_source)]
 
-// The graph canvas and the graph signals it reads, each behind its own
-// feature so the face derivation above stays light. They were the
-// `mere-canvas` and `mere-signals` crates until 2026-09-24; Mere's facade
-// exposes the canvas as `mere::canvas`.
-#[cfg(feature = "canvas")]
-pub mod canvas;
-#[cfg(feature = "signals")]
-pub mod signals;
-
 pub mod backdrop;
 pub mod blazon;
 pub mod symbols;
@@ -92,8 +83,8 @@ pub mod symbols;
 #[cfg(feature = "pack")]
 pub mod icon_pack;
 
-#[cfg(any(feature = "canvas", feature = "pack"))]
-mod flat_icon;
+#[cfg(feature = "paint-list")]
+pub mod flat_icon;
 
 mod grammar;
 mod text_arm;
@@ -404,7 +395,9 @@ fn slot_for(entry: u8) -> u8 {
 }
 
 /// Lower the caller's straight-alpha colors to IconVG's premultiplied palette.
-fn palette_from_rgba<const N: usize>(entries: [[u8; 4]; N]) -> Palette {
+///
+/// Entries past `N` keep the default palette's values.
+pub fn palette_from_rgba<const N: usize>(entries: [[u8; 4]; N]) -> Palette {
     let mut palette = Palette::default();
     for (target, [r, g, b, a]) in palette.0[..N].iter_mut().zip(entries) {
         let premultiply = |channel: u8| ((u32::from(channel) * u32::from(a) + 127) / 255) as u8;

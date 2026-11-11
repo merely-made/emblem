@@ -14,7 +14,12 @@ use super::{Error, PaintListSink};
 
 /// Lower wash bytes in their own coordinate space. The canvas projects the
 /// paths and the gradient rectangles together.
-pub(crate) fn wash_commands(
+///
+/// # Errors
+///
+/// Returns [`Error`] when the file does not decode or carries a gradient other
+/// than a wash's radial one.
+pub fn wash_commands(
     file: &[u8],
     palette: &Palette,
     host_height: f32,
