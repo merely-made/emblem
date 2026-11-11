@@ -23,7 +23,7 @@ pub const WASH: crate::Grammar = crate::Grammar {
 /// and transparent at 8. The host supplies the actual colors.
 pub const PALETTE_ENTRIES: usize = 9;
 
-const OTHER: u8 = 5;
+pub(crate) const OTHER: u8 = 5;
 const ACTIVITY: u8 = 6;
-const MOTIF: u8 = 7;
-const CLEAR: u8 = 8;
+pub(crate) const MOTIF: u8 = 7;
+pub(crate) const CLEAR: u8 = 8;

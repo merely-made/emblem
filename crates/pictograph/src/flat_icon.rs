@@ -4,7 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-//! Flat IconVG lowered to portable paint-list paths for Canvas and icon packaging.
+//! IconVG lowered to portable paint-list primitives for Canvas and icon packaging.
 //!
 //! Canvas returns a netrender [`Scene`](netrender::Scene), so it cannot append the raw vello
 //! fragment exposed by pictograph's optional D2 bridge. The paint list already carries arbitrary
@@ -15,6 +15,10 @@ use emblem::{Host, Paint, Palette, Rgba, Sink};
 use paint_list_api::{
     ColorF, CommonPlacement, LayoutPoint, LayoutRect, PaintCmd, PathCommand, PathData, PathItem,
 };
+#[cfg(feature = "canvas")]
+mod wash;
+#[cfg(feature = "canvas")]
+pub(crate) use wash::wash_commands;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Error {
@@ -30,7 +34,9 @@ impl std::fmt::Display for Error {
             Self::EmptyViewBox => {
                 f.write_str("IconVG view box must have positive width and height")
             },
-            Self::UnsupportedGradient => f.write_str("flat IconVG lowering cannot paint gradients"),
+            Self::UnsupportedGradient => {
+                f.write_str("unsupported IconVG gradient geometry or brush")
+            },
         }
     }
 }
@@ -92,6 +98,8 @@ struct PaintListSink {
     offset_x: f32,
     offset_y: f32,
     unsupported_gradient: bool,
+    #[cfg(feature = "canvas")]
+    allow_wash_gradients: bool,
 }
 
 impl PaintListSink {
@@ -104,6 +112,8 @@ impl PaintListSink {
             offset_x,
             offset_y,
             unsupported_gradient: false,
+            #[cfg(feature = "canvas")]
+            allow_wash_gradients: false,
         }
     }
 
@@ -157,6 +167,13 @@ impl Sink for PaintListSink {
             return;
         }
         let Paint::Flat(color) = paint else {
+            #[cfg(feature = "canvas")]
+            if self.allow_wash_gradients
+                && let Some(command) = wash::radial_command(paint, &path)
+            {
+                self.commands.push(command);
+                return;
+            }
             self.unsupported_gradient = true;
             return;
         };
