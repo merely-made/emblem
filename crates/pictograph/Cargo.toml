@@ -57,6 +57,7 @@ pack = [
     "dep:tempfile",
 ]
 backdrop-cpu = ["canvas", "netrender/vello-cpu"]
+backdrop-svg = ["canvas", "emblem/svg"]
 default = ["image-decode", "physics-engine"]
 # The force engine in this crate's process: `Simulation`, rapier, the settle
 # drivers and the inline and actor `Physics` backends (seiche `actor`, which
