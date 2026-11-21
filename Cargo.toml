@@ -42,7 +42,7 @@ genet-livery = { version = ">=0.0.4", git = "https://github.com/merely-made/gene
 netrender = { version = ">=0.2.0", git = "https://github.com/merely-made/netrender.git", branch = "main" }
 paint_list_api = { version = ">=0.2.0", git = "https://github.com/merely-made/netrender.git", branch = "main" }
 paint_list_render = { version = ">=0.2.0", git = "https://github.com/merely-made/netrender.git", branch = "main" }
-netrender_vello = { package = "netrender-vello", version = "0.11.0", git = "https://github.com/mark-ik/vello", branch = "mark-ik/all-vellos", default-features = false }
+netrender_vello = { package = "netrender-vello", version = ">=0.11.0", git = "https://github.com/mark-ik/vello", branch = "mark-ik/all-vellos", default-features = false }
 sha2 = "0.11"
 
 [workspace.lints.rust]
